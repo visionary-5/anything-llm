@@ -41,6 +41,13 @@ const { workspaceParsedFilesEndpoints } = require("./workspacesParsedFiles");
 const {
   workspaceDeletionProtection,
 } = require("../utils/middleware/workspaceDeletionProtection");
+const {
+  getLocalSourceJob,
+  getWorkspaceLocalSourceInfo,
+  localSourcesEnabled,
+  previewLocalSource,
+  startLocalSourceIndexJob,
+} = require("../utils/wiciLocalSources");
 
 function workspaceEndpoints(app) {
   if (!app) return;
@@ -814,12 +821,12 @@ function workspaceEndpoints(app) {
         // Get threadId we are branching from if that request body is sent
         // and is a valid thread slug.
         const threadId = !!threadSlug
-          ? (
+          ? ((
               await WorkspaceThread.get({
                 slug: String(threadSlug),
                 workspace_id: workspace.id,
               })
-            )?.id ?? null
+            )?.id ?? null)
           : null;
         const chatsToFork = await WorkspaceChats.where(
           {
@@ -976,6 +983,104 @@ function workspaceEndpoints(app) {
       } catch (e) {
         console.error(e.message, e);
         response.sendStatus(500).end();
+      }
+    }
+  );
+
+  app.get(
+    "/workspace/:slug/local-sources",
+    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    async function (request, response) {
+      try {
+        const { slug = null } = request.params;
+        const user = await userFromSession(request, response);
+        const currWorkspace = multiUserMode(response)
+          ? await Workspace.getWithUser(user, { slug })
+          : await Workspace.get({ slug });
+        if (!currWorkspace) return response.sendStatus(404).end();
+
+        response.status(200).json({
+          success: true,
+          ...getWorkspaceLocalSourceInfo(currWorkspace.slug),
+        });
+      } catch (e) {
+        console.error(e.message, e);
+        response.status(500).json({ success: false, error: e.message });
+      }
+    }
+  );
+
+  app.post(
+    "/workspace/:slug/local-sources/preview",
+    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    async function (request, response) {
+      try {
+        if (!localSourcesEnabled())
+          return response
+            .status(403)
+            .json({ success: false, error: "Local sources are disabled." });
+
+        const { slug = null } = request.params;
+        const user = await userFromSession(request, response);
+        const currWorkspace = multiUserMode(response)
+          ? await Workspace.getWithUser(user, { slug })
+          : await Workspace.get({ slug });
+        if (!currWorkspace) return response.sendStatus(404).end();
+
+        response
+          .status(200)
+          .json(previewLocalSource(currWorkspace.slug, reqBody(request)));
+      } catch (e) {
+        console.error(e.message, e);
+        response.status(500).json({ success: false, error: e.message });
+      }
+    }
+  );
+
+  app.post(
+    "/workspace/:slug/local-sources/index",
+    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    async function (request, response) {
+      try {
+        if (!localSourcesEnabled())
+          return response
+            .status(403)
+            .json({ success: false, error: "Local sources are disabled." });
+
+        const { slug = null } = request.params;
+        const user = await userFromSession(request, response);
+        const currWorkspace = multiUserMode(response)
+          ? await Workspace.getWithUser(user, { slug })
+          : await Workspace.get({ slug });
+        if (!currWorkspace) return response.sendStatus(404).end();
+
+        response.status(200).json(
+          startLocalSourceIndexJob({
+            workspace: currWorkspace,
+            userId: user?.id,
+            options: reqBody(request),
+          })
+        );
+      } catch (e) {
+        console.error(e.message, e);
+        response.status(500).json({ success: false, error: e.message });
+      }
+    }
+  );
+
+  app.get(
+    "/workspace/:slug/local-sources/job/:jobId",
+    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager])],
+    async function (request, response) {
+      try {
+        const { slug = null, jobId = null } = request.params;
+        const job = getLocalSourceJob(jobId);
+        if (job?.workspaceSlug !== slug) return response.sendStatus(404).end();
+        if (!job) return response.sendStatus(404).end();
+        response.status(200).json({ success: true, job });
+      } catch (e) {
+        console.error(e.message, e);
+        response.status(500).json({ success: false, error: e.message });
       }
     }
   );

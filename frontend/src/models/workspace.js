@@ -497,6 +497,43 @@ const Workspace = {
     const data = await response.json();
     return { response, data };
   },
+  localSources: async function (slug) {
+    return await fetch(`${API_BASE}/workspace/${slug}/local-sources`, {
+      method: "GET",
+      headers: baseHeaders(),
+    })
+      .then((res) => res.json())
+      .catch((e) => ({ success: false, error: e.message }));
+  },
+  previewLocalSource: async function (slug, body = {}) {
+    return await fetch(`${API_BASE}/workspace/${slug}/local-sources/preview`, {
+      method: "POST",
+      headers: baseHeaders(),
+      body: JSON.stringify(body),
+    })
+      .then((res) => res.json())
+      .catch((e) => ({ success: false, error: e.message }));
+  },
+  indexLocalSource: async function (slug, body = {}) {
+    return await fetch(`${API_BASE}/workspace/${slug}/local-sources/index`, {
+      method: "POST",
+      headers: baseHeaders(),
+      body: JSON.stringify(body),
+    })
+      .then((res) => res.json())
+      .catch((e) => ({ success: false, error: e.message }));
+  },
+  localSourceJob: async function (slug, jobId) {
+    return await fetch(
+      `${API_BASE}/workspace/${slug}/local-sources/job/${jobId}`,
+      {
+        method: "GET",
+        headers: baseHeaders(),
+      }
+    )
+      .then((res) => res.json())
+      .catch((e) => ({ success: false, error: e.message }));
+  },
 
   deleteParsedFiles: async function (slug, fileIds = []) {
     const response = await fetch(

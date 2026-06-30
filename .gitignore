@@ -10,6 +10,7 @@ node_modules
 wici-enrichment-cache/
 server/storage/wici-enrichment-cache/
 server/storage/wici-local-dir-indexer/
+server/storage/wici-local-sources/
 __pycache__
 v-env
 .DS_Store

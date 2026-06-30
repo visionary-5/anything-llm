@@ -4,6 +4,7 @@ import Workspace from "../../../../models/workspace";
 import System from "../../../../models/system";
 import showToast from "../../../../utils/toast";
 import Directory from "./Directory";
+import LocalFolders from "./LocalFolders";
 import WorkspaceDirectory from "./WorkspaceDirectory";
 import { useWorkspaceEmbeddingProgress } from "@/EmbeddingProgressContext";
 
@@ -222,39 +223,42 @@ export default function DocumentSettings({ workspace }) {
   }, [availableDocs, embeddingProgress]);
 
   return (
-    <div className="flex upload-modal -mt-6 z-10 relative">
-      <Directory
-        files={visibleAvailableDocs}
-        setFiles={setAvailableDocs}
-        loading={loading}
-        loadingMessage={loadingMessage}
-        setLoading={setLoading}
-        workspace={workspace}
-        fetchKeys={fetchKeys}
-        selectedItems={selectedItems}
-        setSelectedItems={setSelectedItems}
-        updateWorkspace={updateWorkspace}
-        highlightWorkspace={highlightWorkspace}
-        setHighlightWorkspace={setHighlightWorkspace}
-        moveToWorkspace={moveSelectedItemsToWorkspace}
-        setLoadingMessage={setLoadingMessage}
-      />
-      <div className="upload-modal-arrow">
-        <ArrowsDownUp className="text-white text-base font-bold rotate-90 w-11 h-11" />
+    <div className="upload-modal -mt-6 z-10 relative">
+      <div className="flex">
+        <Directory
+          files={visibleAvailableDocs}
+          setFiles={setAvailableDocs}
+          loading={loading}
+          loadingMessage={loadingMessage}
+          setLoading={setLoading}
+          workspace={workspace}
+          fetchKeys={fetchKeys}
+          selectedItems={selectedItems}
+          setSelectedItems={setSelectedItems}
+          updateWorkspace={updateWorkspace}
+          highlightWorkspace={highlightWorkspace}
+          setHighlightWorkspace={setHighlightWorkspace}
+          moveToWorkspace={moveSelectedItemsToWorkspace}
+          setLoadingMessage={setLoadingMessage}
+        />
+        <div className="upload-modal-arrow">
+          <ArrowsDownUp className="text-white text-base font-bold rotate-90 w-11 h-11" />
+        </div>
+        <WorkspaceDirectory
+          workspace={workspace}
+          files={workspaceDocs}
+          highlightWorkspace={highlightWorkspace}
+          loading={loading}
+          loadingMessage={loadingMessage}
+          setLoadingMessage={setLoadingMessage}
+          setLoading={setLoading}
+          fetchKeys={fetchKeys}
+          hasChanges={hasChanges}
+          saveChanges={updateWorkspace}
+          movedItems={movedItems}
+        />
       </div>
-      <WorkspaceDirectory
-        workspace={workspace}
-        files={workspaceDocs}
-        highlightWorkspace={highlightWorkspace}
-        loading={loading}
-        loadingMessage={loadingMessage}
-        setLoadingMessage={setLoadingMessage}
-        setLoading={setLoading}
-        fetchKeys={fetchKeys}
-        hasChanges={hasChanges}
-        saveChanges={updateWorkspace}
-        movedItems={movedItems}
-      />
+      <LocalFolders workspace={workspace} fetchKeys={fetchKeys} />
     </div>
   );
 }

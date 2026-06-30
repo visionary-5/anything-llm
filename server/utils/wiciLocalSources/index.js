@@ -81,6 +81,14 @@ const SKIP_DIR_NAMES = new Set([
   "wici-local-dir-indexer",
   "wici-local-sources",
 ]);
+const USER_ROOT_PRIORITY = [
+  "Documents",
+  "Downloads",
+  "Desktop",
+  "Pictures",
+  "Movies",
+  "Music",
+];
 const jobs = new Map();
 
 function storageRoot() {
@@ -149,11 +157,13 @@ function expandRoot(root) {
 }
 
 function normalizeOptions(options = {}) {
+  const roots = (options.roots || [])
+    .map(expandRoot)
+    .filter(Boolean)
+    .map((root) => path.resolve(root));
+
   return {
-    roots: (options.roots || [])
-      .map(expandRoot)
-      .filter(Boolean)
-      .map((root) => path.resolve(root)),
+    roots: prioritizedScanRoots(roots),
     extensions: parseExtensions(options.extensions),
     maxBytes: Number(options.maxBytes || 50 * 1024 * 1024),
     includeHidden:
@@ -184,6 +194,30 @@ function normalizeOptions(options = {}) {
   };
 }
 
+function prioritizedScanRoots(roots = []) {
+  const home = os.homedir();
+  const prioritized = [];
+  const seen = new Set();
+
+  function add(root) {
+    const resolved = path.resolve(root);
+    if (seen.has(resolved)) return;
+    seen.add(resolved);
+    prioritized.push(resolved);
+  }
+
+  function addUserRoots() {
+    for (const name of USER_ROOT_PRIORITY) add(path.join(home, name));
+  }
+
+  for (const root of roots) {
+    if (root === "/" || root === home) addUserRoots();
+    add(root);
+  }
+
+  return prioritized;
+}
+
 function shouldSkipDir(name, includeHidden = false) {
   if (SKIP_DIR_NAMES.has(name)) return true;
   if (!includeHidden && name.startsWith(".")) return true;
@@ -208,7 +242,12 @@ function fingerprintFor(filepath, stat) {
 function filePriority(fingerprint) {
   const extensionPriority =
     EXTENSION_PRIORITY[fingerprint.extension] ?? Number.MAX_SAFE_INTEGER;
-  return [extensionPriority, fingerprint.path.length, fingerprint.key];
+  return [
+    extensionPriority,
+    -Number(fingerprint.mtimeMs || 0),
+    fingerprint.path.length,
+    fingerprint.key,
+  ];
 }
 
 function compareFingerprints(a, b) {
@@ -225,6 +264,8 @@ function scanLocalFiles(options = {}) {
   const parsed = normalizeOptions(options);
   const files = [];
   const skipped = [];
+  const seenDirs = new Set();
+  const seenFiles = new Set();
   let truncated = false;
   let visitedEntries = 0;
 
@@ -238,40 +279,82 @@ function scanLocalFiles(options = {}) {
 
   function considerFile(filepath) {
     if (shouldStop()) return;
+    const resolved = path.resolve(filepath);
+    if (seenFiles.has(resolved)) return;
+    seenFiles.add(resolved);
     visitedEntries += 1;
     try {
-      const stat = fs.lstatSync(filepath);
+      const stat = fs.lstatSync(resolved);
       if (stat.isSymbolicLink() || !stat.isFile() || stat.size <= 0) return;
-      const extension = path.extname(filepath).toLowerCase();
+      const extension = path.extname(resolved).toLowerCase();
       if (!parsed.extensions.has(extension)) return;
       if (parsed.maxBytes > 0 && stat.size > parsed.maxBytes) {
-        skipped.push({ path: filepath, reason: "too_large", size: stat.size });
+        skipped.push({ path: resolved, reason: "too_large", size: stat.size });
         return;
       }
-      files.push(fingerprintFor(filepath, stat));
+      files.push(fingerprintFor(resolved, stat));
       if (shouldStop()) truncated = true;
     } catch (error) {
-      skipped.push({ path: filepath, reason: error.code || error.message });
+      skipped.push({ path: resolved, reason: error.code || error.message });
     }
+  }
+
+  function entryPriority(entry) {
+    if (entry.isDirectory()) {
+      const userRootIndex = USER_ROOT_PRIORITY.indexOf(entry.name);
+      return [
+        0,
+        userRootIndex === -1 ? USER_ROOT_PRIORITY.length : userRootIndex,
+        entry.name,
+      ];
+    }
+
+    if (entry.isFile()) {
+      const extension = path.extname(entry.name).toLowerCase();
+      return [
+        1,
+        EXTENSION_PRIORITY[extension] ?? Number.MAX_SAFE_INTEGER,
+        entry.name,
+      ];
+    }
+
+    return [2, Number.MAX_SAFE_INTEGER, entry.name];
+  }
+
+  function sortEntries(entries) {
+    return entries.sort((a, b) => {
+      const aPriority = entryPriority(a);
+      const bPriority = entryPriority(b);
+      for (let index = 0; index < aPriority.length; index++) {
+        if (aPriority[index] < bPriority[index]) return -1;
+        if (aPriority[index] > bPriority[index]) return 1;
+      }
+      return 0;
+    });
   }
 
   function walk(root) {
     if (shouldStop()) return;
+    const resolvedRoot = path.resolve(root);
+    if (seenDirs.has(resolvedRoot)) return;
+    seenDirs.add(resolvedRoot);
     visitedEntries += 1;
     try {
-      const stat = fs.lstatSync(root);
+      const stat = fs.lstatSync(resolvedRoot);
       if (stat.isSymbolicLink()) return;
-      if (stat.isFile()) return considerFile(root);
+      if (stat.isFile()) return considerFile(resolvedRoot);
       if (!stat.isDirectory()) return;
 
-      const entries = fs.readdirSync(root, { withFileTypes: true });
+      const entries = sortEntries(
+        fs.readdirSync(resolvedRoot, { withFileTypes: true })
+      );
       for (const entry of entries) {
         if (shouldStop()) {
           truncated = true;
           return;
         }
         if (shouldSkipDir(entry.name, parsed.includeHidden)) continue;
-        const nextPath = path.join(root, entry.name);
+        const nextPath = path.join(resolvedRoot, entry.name);
         if (entry.isDirectory()) walk(nextPath);
         else if (entry.isFile()) considerFile(nextPath);
       }
@@ -330,6 +413,11 @@ function summarizeState(workspaceSlug) {
 function pathPresets() {
   const home = os.homedir();
   return [
+    {
+      label: "User files",
+      path: "~/Documents\n~/Downloads\n~/Desktop\n~/Pictures",
+      description: "Documents, Downloads, Desktop, and Pictures",
+    },
     { label: "Home", path: "~", description: home },
     {
       label: "Desktop",

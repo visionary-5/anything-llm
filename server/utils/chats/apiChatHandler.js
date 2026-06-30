@@ -7,6 +7,7 @@ const {
   chatPrompt,
   formatSourceForContext,
   formatSourcesForContext,
+  stripHiddenReasoning,
   sourceIdentifier,
   recentChatHistory,
   grepAllSlashCommands,
@@ -432,11 +433,12 @@ async function chatSync({
   );
 
   // Send the text completion.
-  const { textResponse, metrics: performanceMetrics } =
+  const { textResponse: rawTextResponse, metrics: performanceMetrics } =
     await LLMConnector.getChatCompletion(messages, {
       temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
       user: user,
     });
+  const textResponse = stripHiddenReasoning(rawTextResponse);
 
   if (!textResponse) {
     return {
@@ -827,12 +829,12 @@ async function streamChat({
     console.log(
       `\x1b[31m[STREAMING DISABLED]\x1b[0m Streaming is not available for ${LLMConnector.constructor.name}. Will use regular chat method.`
     );
-    const { textResponse, metrics: performanceMetrics } =
+    const { textResponse: rawTextResponse, metrics: performanceMetrics } =
       await LLMConnector.getChatCompletion(messages, {
         temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
         user: user,
       });
-    completeText = textResponse;
+    completeText = stripHiddenReasoning(rawTextResponse);
     metrics = performanceMetrics;
     writeResponseChunk(response, {
       uuid,

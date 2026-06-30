@@ -111,7 +111,7 @@ async function chatPrompt(workspace, user = null, opts = {}) {
 
   return `${memoryPrompt}
 
-When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data.`;
+When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data. Do not output hidden reasoning, chain-of-thought, "Thinking Process", or <think> blocks; only output the final answer.`;
 }
 
 // We use this util function to deduplicate sources from similarity searching
@@ -175,10 +175,19 @@ function formatSourcesForContext(sources = [], startIndex = 0) {
     .filter(Boolean);
 }
 
+function stripHiddenReasoning(text = "") {
+  if (!text) return text;
+  return String(text)
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<think>[\s\S]*$/gi, "")
+    .trim();
+}
+
 module.exports = {
   sourceIdentifier,
   formatSourceForContext,
   formatSourcesForContext,
+  stripHiddenReasoning,
   recentChatHistory,
   chatPrompt,
   grepCommand,

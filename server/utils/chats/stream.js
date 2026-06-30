@@ -13,6 +13,7 @@ const {
   formatSourcesForContext,
   recentChatHistory,
   sourceIdentifier,
+  stripHiddenReasoning,
 } = require("./index");
 
 const VALID_CHAT_MODE = ["automatic", "chat", "query"];
@@ -288,13 +289,13 @@ async function streamChatWithWorkspace(
     console.log(
       `\x1b[31m[STREAMING DISABLED]\x1b[0m Streaming is not available for ${LLMConnector.constructor.name}. Will use regular chat method.`
     );
-    const { textResponse, metrics: performanceMetrics } =
+    const { textResponse: rawTextResponse, metrics: performanceMetrics } =
       await LLMConnector.getChatCompletion(messages, {
         temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
         user: user,
       });
 
-    completeText = textResponse;
+    completeText = stripHiddenReasoning(rawTextResponse);
     metrics = performanceMetrics;
     writeResponseChunk(response, {
       uuid,
@@ -314,6 +315,7 @@ async function streamChatWithWorkspace(
       uuid,
       sources,
     });
+    completeText = stripHiddenReasoning(completeText);
     metrics = stream.metrics;
   }
 

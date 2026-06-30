@@ -14,6 +14,7 @@ import showToast from "@/utils/toast";
 
 const DEFAULT_EXTENSIONS =
   ".jpg,.jpeg,.png,.webp,.gif,.bmp,.pdf,.txt,.md,.csv,.json,.docx,.xlsx";
+const DEFAULT_ROOTS = "~/Documents\n~/Downloads\n~/Desktop\n~/Pictures";
 
 function pathsFromText(text) {
   return text
@@ -33,7 +34,7 @@ function formatBytes(bytes) {
 
 export default function LocalFolders({ workspace, fetchKeys }) {
   const [info, setInfo] = useState(null);
-  const [rootsText, setRootsText] = useState("~/Pictures");
+  const [rootsText, setRootsText] = useState(DEFAULT_ROOTS);
   const [extensions, setExtensions] = useState(DEFAULT_EXTENSIONS);
   const [limit, setLimit] = useState(100);
   const [maxMb, setMaxMb] = useState(50);
@@ -191,7 +192,7 @@ export default function LocalFolders({ workspace, fetchKeys }) {
             value={rootsText}
             onChange={(event) => setRootsText(event.target.value)}
             className="mt-2 h-[96px] w-full resize-none rounded-lg border border-theme-modal-border bg-theme-bg-primary p-3 text-sm text-theme-text-primary placeholder:text-theme-settings-input-placeholder focus:outline-primary-button"
-            placeholder={"~/Pictures\n~/Documents"}
+            placeholder={DEFAULT_ROOTS}
           />
           <div className="mt-2 flex flex-wrap gap-2">
             {(info?.presets || []).map((preset) => (

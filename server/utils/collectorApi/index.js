@@ -48,7 +48,9 @@ class CollectorApi {
   constructor() {
     const { CommunicationKey } = require("../comKey");
     this.comkey = new CommunicationKey();
-    this.endpoint = `http://0.0.0.0:${CollectorApi.getCollectorPort()}`;
+    this.endpoint =
+      process.env.COLLECTOR_BASE_URL ||
+      `http://0.0.0.0:${CollectorApi.getCollectorPort()}`;
   }
 
   log(text, ...args) {
@@ -119,7 +121,6 @@ class CollectorApi {
         ),
       },
       body: data,
-      dispatcher: new Agent({ headersTimeout: 600000 }),
     })
       .then((res) => {
         if (!res.ok) throw new Error("Response could not be completed");

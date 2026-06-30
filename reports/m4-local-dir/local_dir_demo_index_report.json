@@ -1,0 +1,127 @@
+{
+  "generated_at": "2026-06-30T15:59:18+0800",
+  "workspace": {
+    "id": 9,
+    "name": "WICI Local Dir Demo",
+    "slug": "wici-local-dir-demo",
+    "vectorTag": null,
+    "createdAt": "2026-06-30T07:59:13.649Z",
+    "openAiTemp": null,
+    "openAiHistory": 20,
+    "lastUpdatedAt": "2026-06-30T07:59:13.649Z",
+    "openAiPrompt": "Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. Return only your response to the question given the above information following the users instructions as needed.",
+    "similarityThreshold": 0,
+    "chatProvider": null,
+    "chatModel": null,
+    "topN": 20,
+    "chatMode": "query",
+    "pfpFilename": null,
+    "agentProvider": null,
+    "agentModel": null,
+    "queryRefusalResponse": null,
+    "vectorSearchMode": "default",
+    "router_id": null
+  },
+  "roots": [
+    "/private/tmp/wici-local-dir-demo"
+  ],
+  "extensions": [
+    ".bmp",
+    ".csv",
+    ".docx",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".json",
+    ".md",
+    ".pdf",
+    ".png",
+    ".txt",
+    ".webp",
+    ".xlsx"
+  ],
+  "state_path": "server/storage/wici-local-dir-indexer/demo-manifest.json",
+  "dry_run": false,
+  "force": false,
+  "summary": {
+    "seen": 3,
+    "attempted": 3,
+    "ok": 3,
+    "failed": 0,
+    "elapsed_s": 5.087607145309448
+  },
+  "rows": [
+    {
+      "path": "/private/tmp/wici-local-dir-demo/black-cat-sink.jpg",
+      "signature": "118455:1782806010103101268",
+      "size": 118455,
+      "ok": true,
+      "error": null,
+      "documents": [
+        {
+          "id": "3e9644e0-a9a1-4d48-b90e-cc58c05f57ab",
+          "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/black-cat-sink.jpg",
+          "title": "black-cat-sink.jpg",
+          "docAuthor": "local filesystem",
+          "description": "Auto-indexed from local directory: /private/tmp/wici-local-dir-demo/black-cat-sink.jpg",
+          "docSource": "WICI local directory indexer",
+          "chunkSource": "file:///private/tmp/wici-local-dir-demo/black-cat-sink.jpg",
+          "published": "6/30/2026, 3:59:13 PM",
+          "wordCount": 65,
+          "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A black cat with striking yellow eyes sits on a bathroom countertop next to a faucet and various bottles.\n\nVISIBLE_TEXT: none\n\nOBJECTS: black cat, faucet, bottles, countertop\n\nSCENE: bathroom\n\nCOLORS_AND_ATTRIBUTES: black fur, yellow eyes, silver faucet, pink bottle, beige countertop\n\nRELATIONSHIPS: cat sitting beside faucet and bottles on countertop\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: \"black cat in bathroom\", \"cat with yellow eyes\", \"bathroom scene with cat\"\n\n# OCR Text\nWEE",
+          "token_count_estimate": 128,
+          "location": "custom-documents/black-cat-sink.jpg-3e9644e0-a9a1-4d48-b90e-cc58c05f57ab.json",
+          "isDirectUpload": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/wici-local-dir-demo/camera-phone.jpg",
+      "signature": "105808:1782806010100915315",
+      "size": 105808,
+      "ok": true,
+      "error": null,
+      "documents": [
+        {
+          "id": "0c68535a-2319-445e-8d9c-52b9b5f3a19d",
+          "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/camera-phone.jpg",
+          "title": "camera-phone.jpg",
+          "docAuthor": "local filesystem",
+          "description": "Auto-indexed from local directory: /private/tmp/wici-local-dir-demo/camera-phone.jpg",
+          "docSource": "WICI local directory indexer",
+          "chunkSource": "file:///private/tmp/wici-local-dir-demo/camera-phone.jpg",
+          "published": "6/30/2026, 3:59:14 PM",
+          "wordCount": 80,
+          "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A Sony DSLR camera and an older flip phone are placed on a wooden surface.\n\nVISIBLE_TEXT: SONY, 200, Equl., 135\n\nOBJECTS: Sony DSLR camera, flip phone with screen display\n\nSCENE: Wooden surface\n\nCOLORS_AND_ATTRIBUTES: Black (camera), White (flip phone), Brown (wooden surface)\n\nRELATIONSHIPS: Flip phone is in front of the camera on a wooden surface.\n\nDOCUMENT_TYPE: Photo\n\nSEARCH_PHRASES: Sony DSLR, flip phone, vintage technology, photography equipment\n\n# OCR Text\n27 TR. 4 <\nyo | &\nWy, /\n@ N &\nQ\nEs =e eS oo\n| 2232 n or",
+          "token_count_estimate": 160,
+          "location": "custom-documents/camera-phone.jpg-0c68535a-2319-445e-8d9c-52b9b5f3a19d.json",
+          "isDirectUpload": false
+        }
+      ]
+    },
+    {
+      "path": "/private/tmp/wici-local-dir-demo/red-stamp-receipt.png",
+      "signature": "1091054:1782806010105621887",
+      "size": 1091054,
+      "ok": true,
+      "error": null,
+      "documents": [
+        {
+          "id": "09b759f6-d79f-40fc-bb13-d217fbd93ae5",
+          "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/red-stamp-receipt.png",
+          "title": "red-stamp-receipt.png",
+          "docAuthor": "local filesystem",
+          "description": "Auto-indexed from local directory: /private/tmp/wici-local-dir-demo/red-stamp-receipt.png",
+          "docSource": "WICI local directory indexer",
+          "chunkSource": "file:///private/tmp/wici-local-dir-demo/red-stamp-receipt.png",
+          "published": "6/30/2026, 3:59:14 PM",
+          "wordCount": 139,
+          "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A receipt from A Fung showing the purchase of Baso Kuali and mineral water with tax applied.\n\nVISIBLE_TEXT: BASO KUALI 1 43,636 43,636\nA.MINERAL GELAS 1 3.000 3.000\nTOTAL 46.636\nDPP 46.636\nTAX 10.00 %\nGRAND TOTAL: 51.300\nTUNAI 52,000\nKEMBALI 700\n\nOBJECTS: receipt, text, logo, numbers.\n\nSCENE: The image appears to be a close-up of the receipt on a flat surface.\n\nCOLORS_AND_ATTRIBUTES: White background with red and black text. Red logo and text elements are prominent.\n\nRELATIONSHIPS: None specified in the image.\n\nDOCUMENT_TYPE: Receipt\n\nSEARCH_PHRASES: A Fung receipt, Baso Kuali purchase, mineral water, tax applied, Indonesian food receipt\n\n# OCR Text\nB®\n—-\neo!\n(=\n7 4\nQ\na\nGig\noli Sa OR OS ie AN\n| >\n| et\nSE TEE GRBIeD FeURNTY =\n(>)\nEe rm en\nfl ar 4 . § 0)\ni ee . N\n(LE A RN CE\nRL ELAR i 3.800 3,000\ni 1:15\n0 a 4:83)\n. ; lg\na Be, ix a!\n§ eR ZL =\nFu TOE\none: @\nE. 5\nEo\nbE . .\nfo |",
+          "token_count_estimate": 346,
+          "location": "custom-documents/red-stamp-receipt.png-09b759f6-d79f-40fc-bb13-d217fbd93ae5.json",
+          "isDirectUpload": false
+        }
+      ]
+    }
+  ]
+}

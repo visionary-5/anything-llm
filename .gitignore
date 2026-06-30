@@ -9,6 +9,7 @@ node_modules
 .m2-rerank-venv/
 wici-enrichment-cache/
 server/storage/wici-enrichment-cache/
+server/storage/wici-local-dir-indexer/
 __pycache__
 v-env
 .DS_Store

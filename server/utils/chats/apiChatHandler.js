@@ -5,6 +5,8 @@ const { getVectorDbClass, resolveProviderConnector } = require("../helpers");
 const { writeResponseChunk } = require("../helpers/chat/responses");
 const {
   chatPrompt,
+  formatSourceForContext,
+  formatSourcesForContext,
   sourceIdentifier,
   recentChatHistory,
   grepAllSlashCommands,
@@ -292,7 +294,12 @@ async function chatSync({
       pinnedDocs.forEach((doc) => {
         const { pageContent, ...metadata } = doc;
         pinnedDocIdentifiers.push(sourceIdentifier(doc));
-        contextTexts.push(doc.pageContent);
+        contextTexts.push(
+          formatSourceForContext(
+            { pageContent, ...metadata },
+            contextTexts.length
+          )
+        );
         sources.push({
           text:
             pageContent.slice(0, 1_000) +
@@ -307,8 +314,13 @@ async function chatSync({
   attachments = processedAttachments.imageAttachments;
   parsedAttachments.forEach((doc) => {
     if (doc.pageContent) {
-      contextTexts.push(doc.pageContent);
       const { pageContent, ...metadata } = doc;
+      contextTexts.push(
+        formatSourceForContext(
+          { pageContent, ...metadata },
+          contextTexts.length
+        )
+      );
       sources.push({
         text:
           pageContent.slice(0, 1_000) + "...continued on in source document...",
@@ -362,7 +374,10 @@ async function chatSync({
   // If a past citation was used to answer the question - that is visible in the history so it logically makes sense
   // and does not appear to the user that a new response used information that is otherwise irrelevant for a given prompt.
   // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
-  contextTexts = [...contextTexts, ...filledSources.contextTexts];
+  contextTexts = [
+    ...contextTexts,
+    ...formatSourcesForContext(filledSources.sources, contextTexts.length),
+  ];
   sources = [...sources, ...vectorSearchResults.sources];
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
@@ -668,7 +683,12 @@ async function streamChat({
       pinnedDocs.forEach((doc) => {
         const { pageContent, ...metadata } = doc;
         pinnedDocIdentifiers.push(sourceIdentifier(doc));
-        contextTexts.push(doc.pageContent);
+        contextTexts.push(
+          formatSourceForContext(
+            { pageContent, ...metadata },
+            contextTexts.length
+          )
+        );
         sources.push({
           text:
             pageContent.slice(0, 1_000) +
@@ -683,8 +703,13 @@ async function streamChat({
   attachments = processedAttachments.imageAttachments;
   parsedAttachments.forEach((doc) => {
     if (doc.pageContent) {
-      contextTexts.push(doc.pageContent);
       const { pageContent, ...metadata } = doc;
+      contextTexts.push(
+        formatSourceForContext(
+          { pageContent, ...metadata },
+          contextTexts.length
+        )
+      );
       sources.push({
         text:
           pageContent.slice(0, 1_000) + "...continued on in source document...",
@@ -739,7 +764,10 @@ async function streamChat({
   // If a past citation was used to answer the question - that is visible in the history so it logically makes sense
   // and does not appear to the user that a new response used information that is otherwise irrelevant for a given prompt.
   // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
-  contextTexts = [...contextTexts, ...filledSources.contextTexts];
+  contextTexts = [
+    ...contextTexts,
+    ...formatSourcesForContext(filledSources.sources, contextTexts.length),
+  ];
   sources = [...sources, ...vectorSearchResults.sources];
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not

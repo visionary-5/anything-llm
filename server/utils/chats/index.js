@@ -99,13 +99,19 @@ async function chatPrompt(workspace, user = null, opts = {}) {
     user?.id,
     workspace?.id
   );
-  return promptWithMemories({
+  const memoryPrompt = await promptWithMemories({
     systemPrompt,
     userId: user?.id ?? null,
     workspaceId: workspace?.id,
     prompt: opts.prompt ?? "",
     rawHistory: opts.rawHistory ?? [],
   });
+  if (String(process.env.WICI_LOCAL_RAG_PROMPT_ENABLED ?? "true") === "false")
+    return memoryPrompt;
+
+  return `${memoryPrompt}
+
+When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data.`;
 }
 
 // We use this util function to deduplicate sources from similarity searching
@@ -118,8 +124,61 @@ function sourceIdentifier(sourceDocument) {
   return `title:${sourceDocument.title}-timestamp:${sourceDocument.published}`;
 }
 
+function cleanMetadataValue(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value;
+  return String(value).slice(0, 1_000);
+}
+
+function sourceMetadataForContext(source = {}, index = null) {
+  const metadata = {
+    context_id: index === null ? null : index,
+    title: source.title || source.filename || source.name || null,
+    source_path: source.sourcePath || source.chunkSource || source.url || null,
+    chunk_source: source.chunkSource || null,
+    document_source: source.docSource || null,
+    document_type: source.documentType || source.type || null,
+    author: source.docAuthor || null,
+    published: source.published || null,
+    page: source.page || source.pageNumber || null,
+    score: source.score ?? null,
+  };
+
+  return Object.fromEntries(
+    Object.entries(metadata)
+      .map(([key, value]) => [key, cleanMetadataValue(value)])
+      .filter(([, value]) => value !== null)
+  );
+}
+
+function contextBodyFromSource(source = {}) {
+  return source.pageContent || source.text || "";
+}
+
+function formatSourceForContext(source = {}, index = null) {
+  const body = contextBodyFromSource(source);
+  if (!body) return "";
+  const metadata = sourceMetadataForContext(source, index);
+  if (Object.keys(metadata).length === 0) return body;
+
+  return `<document_metadata>
+${JSON.stringify(metadata, null, 2)}
+</document_metadata>
+
+${body}`;
+}
+
+function formatSourcesForContext(sources = [], startIndex = 0) {
+  return sources
+    .map((source, index) => formatSourceForContext(source, startIndex + index))
+    .filter(Boolean);
+}
+
 module.exports = {
   sourceIdentifier,
+  formatSourceForContext,
+  formatSourcesForContext,
   recentChatHistory,
   chatPrompt,
   grepCommand,

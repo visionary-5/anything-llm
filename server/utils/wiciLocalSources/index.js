@@ -21,18 +21,58 @@ const DEFAULT_EXTENSIONS = [
   ".webp",
   ".xlsx",
 ];
+const EXTENSION_PRIORITY = {
+  ".pdf": 0,
+  ".docx": 1,
+  ".xlsx": 1,
+  ".png": 2,
+  ".jpg": 2,
+  ".jpeg": 2,
+  ".webp": 2,
+  ".gif": 2,
+  ".bmp": 2,
+  ".md": 3,
+  ".txt": 3,
+  ".csv": 4,
+  ".json": 5,
+};
 const SKIP_DIR_NAMES = new Set([
   ".git",
   ".hg",
   ".svn",
   ".DS_Store",
   ".Trash",
+  ".cache",
+  ".cargo",
+  ".conda",
+  ".gradle",
+  ".local",
+  ".npm",
+  ".pnpm-store",
+  ".pyenv",
+  ".rustup",
+  ".tox",
+  ".turbo",
+  ".yarn",
+  ".next",
+  ".parcel-cache",
   "__pycache__",
   "Applications",
+  "build",
+  "Caches",
+  "coverage",
+  "DerivedData",
+  "dist",
+  "env",
   "Library",
+  "logs",
+  "miniconda3",
   "System",
   "node_modules",
+  "Pods",
   "private",
+  "site-packages",
+  "target",
   "venv",
   ".venv",
   ".m0-storage",
@@ -116,6 +156,10 @@ function normalizeOptions(options = {}) {
       .map((root) => path.resolve(root)),
     extensions: parseExtensions(options.extensions),
     maxBytes: Number(options.maxBytes || 50 * 1024 * 1024),
+    includeHidden:
+      options.includeHidden === true ||
+      String(process.env.WICI_LOCAL_SOURCES_INCLUDE_HIDDEN ?? "false") ===
+        "true",
     limit:
       options.limit === null || options.limit === undefined
         ? null
@@ -140,6 +184,15 @@ function normalizeOptions(options = {}) {
   };
 }
 
+function shouldSkipDir(name, includeHidden = false) {
+  if (SKIP_DIR_NAMES.has(name)) return true;
+  if (!includeHidden && name.startsWith(".")) return true;
+  if (name.endsWith(".app")) return true;
+  if (name.endsWith(".framework")) return true;
+  if (name.endsWith(".xcodeproj")) return true;
+  return false;
+}
+
 function fingerprintFor(filepath, stat) {
   const absolutePath = path.resolve(filepath);
   return {
@@ -150,6 +203,22 @@ function fingerprintFor(filepath, stat) {
     signature: `${stat.size}:${Math.floor(stat.mtimeMs)}`,
     extension: path.extname(absolutePath).toLowerCase(),
   };
+}
+
+function filePriority(fingerprint) {
+  const extensionPriority =
+    EXTENSION_PRIORITY[fingerprint.extension] ?? Number.MAX_SAFE_INTEGER;
+  return [extensionPriority, fingerprint.path.length, fingerprint.key];
+}
+
+function compareFingerprints(a, b) {
+  const aPriority = filePriority(a);
+  const bPriority = filePriority(b);
+  for (let index = 0; index < aPriority.length; index++) {
+    if (aPriority[index] < bPriority[index]) return -1;
+    if (aPriority[index] > bPriority[index]) return 1;
+  }
+  return 0;
 }
 
 function scanLocalFiles(options = {}) {
@@ -201,7 +270,7 @@ function scanLocalFiles(options = {}) {
           truncated = true;
           return;
         }
-        if (SKIP_DIR_NAMES.has(entry.name)) continue;
+        if (shouldSkipDir(entry.name, parsed.includeHidden)) continue;
         const nextPath = path.join(root, entry.name);
         if (entry.isDirectory()) walk(nextPath);
         else if (entry.isFile()) considerFile(nextPath);
@@ -220,7 +289,7 @@ function scanLocalFiles(options = {}) {
     walk(root);
   }
 
-  files.sort((a, b) => a.key.localeCompare(b.key));
+  files.sort(compareFingerprints);
   return {
     files,
     skipped,

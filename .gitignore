@@ -1,8 +1,14 @@
 v-env
 .env
+.env.*
 !.env.example
+!**/.env.example
 
 node_modules
+.m0-storage/
+.m2-rerank-venv/
+wici-enrichment-cache/
+server/storage/wici-enrichment-cache/
 __pycache__
 v-env
 .DS_Store

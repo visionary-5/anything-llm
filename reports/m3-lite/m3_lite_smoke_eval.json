@@ -1,0 +1,422 @@
+{
+  "generated_at": "2026-06-30T15:19:56+0800",
+  "settings": {
+    "api_base": "http://localhost:3101/api",
+    "db_path": "/Users/saprk/wici-visionary-5/anything-llm/server/storage/anythingllm.db",
+    "corpus_root": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus",
+    "max_rank": 20,
+    "top_ks": [
+      1,
+      3,
+      5
+    ],
+    "ping": {
+      "online": true
+    },
+    "run_label": "M3-lite Visual Index Card Smoke Eval",
+    "ingest_path_note": "real AnythingLLM upload API and collector; image files go through OCR plus local VLM visual search index card enrichment with local cache."
+  },
+  "workspace": {
+    "id": 7,
+    "name": "M3-lite Visual Index Card Smoke",
+    "slug": "m3-lite-visual-index-card-smoke",
+    "vectorTag": null,
+    "createdAt": "2026-06-30T07:19:28.298Z",
+    "openAiTemp": null,
+    "openAiHistory": 20,
+    "lastUpdatedAt": "2026-06-30T07:19:28.298Z",
+    "openAiPrompt": "Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. Return only your response to the question given the above information following the users instructions as needed.",
+    "similarityThreshold": 0,
+    "chatProvider": null,
+    "chatModel": null,
+    "topN": 20,
+    "chatMode": "query",
+    "pfpFilename": null,
+    "agentProvider": null,
+    "agentModel": null,
+    "queryRefusalResponse": null,
+    "vectorSearchMode": "default",
+    "router_id": null
+  },
+  "upload_summary": {
+    "total": 10,
+    "ok": 10,
+    "failed": 0,
+    "skipped": false
+  },
+  "summary": {
+    "all": {
+      "query_count": 3,
+      "R@1": 0.6666666666666666,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "MRR": 0.7777777777777778,
+      "miss_at_5_count": 0,
+      "mean_query_elapsed_s": 0.17767227801959962,
+      "mean_rerank_latency_s": 0.1318547916210567
+    },
+    "pure_visual": {
+      "query_count": 3,
+      "R@1": 0.6666666666666666,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "MRR": 0.7777777777777778,
+      "miss_at_5_count": 0,
+      "mean_query_elapsed_s": 0.17767227801959962,
+      "mean_rerank_latency_s": 0.1318547916210567
+    },
+    "text_or_ocr": {
+      "query_count": 0,
+      "R@1": 0.0,
+      "R@3": 0.0,
+      "R@5": 0.0,
+      "MRR": 0.0,
+      "miss_at_5_count": 0,
+      "mean_query_elapsed_s": 0.0,
+      "mean_rerank_latency_s": 0.0
+    },
+    "by_category": {
+      "pure_visual_photo": {
+        "query_count": 3,
+        "R@1": 0.6666666666666666,
+        "R@3": 1.0,
+        "R@5": 1.0,
+        "MRR": 0.7777777777777778,
+        "miss_at_5_count": 0,
+        "mean_query_elapsed_s": 0.17767227801959962,
+        "mean_rerank_latency_s": 0.1318547916210567
+      }
+    }
+  },
+  "query_rows": [
+    {
+      "id": "q01_black_cat_sink",
+      "query": "Find the image of a black cat sitting in a bathroom sink.",
+      "category": "pure_visual_photo",
+      "pure_visual": true,
+      "expected_ids": [
+        "coco_284623"
+      ],
+      "first_relevant_rank": 1,
+      "mrr": 1.0,
+      "R@1": 1.0,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "top_ids": [
+        "coco_284623",
+        "coco_304560",
+        "coco_423506",
+        "coco_110449",
+        "coco_221693",
+        "coco_324715",
+        "coco_259597",
+        "coco_446207",
+        "coco_135410",
+        "coco_388258"
+      ],
+      "raw_result_count": 10,
+      "query_elapsed_s": 0.2663247080054134,
+      "rerank_latency_ms": 228.09995792340487
+    },
+    {
+      "id": "q02_black_cat_grass",
+      "query": "Find the close-up photo of a black cat in green grass.",
+      "category": "pure_visual_photo",
+      "pure_visual": true,
+      "expected_ids": [
+        "coco_304560"
+      ],
+      "first_relevant_rank": 1,
+      "mrr": 1.0,
+      "R@1": 1.0,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "top_ids": [
+        "coco_304560",
+        "coco_221693",
+        "coco_284623",
+        "coco_446207",
+        "coco_259597",
+        "coco_324715",
+        "coco_423506",
+        "coco_110449",
+        "coco_135410",
+        "coco_388258"
+      ],
+      "raw_result_count": 10,
+      "query_elapsed_s": 0.14760158397257328,
+      "rerank_latency_ms": 98.39929197914898
+    },
+    {
+      "id": "q03_camera_next_to_phone",
+      "query": "Find the photo with a camera placed next to a smartphone on a table.",
+      "category": "pure_visual_photo",
+      "pure_visual": true,
+      "expected_ids": [
+        "coco_446207"
+      ],
+      "first_relevant_rank": 3,
+      "mrr": 0.3333333333333333,
+      "R@1": 0.0,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "top_ids": [
+        "coco_259597",
+        "coco_110449",
+        "coco_446207",
+        "coco_423506",
+        "coco_324715",
+        "coco_284623",
+        "coco_221693",
+        "coco_304560",
+        "coco_135410",
+        "coco_388258"
+      ],
+      "raw_result_count": 10,
+      "query_elapsed_s": 0.11909054208081216,
+      "rerank_latency_ms": 69.06512496061623
+    }
+  ],
+  "upload_rows": [
+    {
+      "index": 1,
+      "item_id": "coco_110449",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_110449.jpg",
+      "modality": "image",
+      "kind": "laptop",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "6ead6aca-0cb0-48ba-b518-99ca2bee85b3",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_110449.jpg",
+        "title": "coco_110449",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:28 PM",
+        "wordCount": 85,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: Two individuals are engaged in an activity involving gaming controllers and a surface.\n\nVISIBLE_TEXT: NOBODY'S PERFECT\n\nOBJECTS: gaming controller, wristband, cap, t-shirt, table\n\nSCENE: indoor setting with plain walls and minimal background details.\n\nCOLORS_AND_ATTRIBUTES: white (controller), green (t-shirt), black (cap), white text on shirt, brown hair, light skin tone.\n\nRELATIONSHIPS: one person is holding a gaming controller while the other has their hands extended towards a surface. Both are focused on something off-camera.\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: gaming setup, friends playing games, casual gaming session\n\n# OCR Text\nLINEA",
+        "token_count_estimate": 153,
+        "location": "custom-documents/coco_110449.jpg-6ead6aca-0cb0-48ba-b518-99ca2bee85b3.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 2,
+      "item_id": "coco_135410",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_135410.jpg",
+      "modality": "image",
+      "kind": "bicycle",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "ecd450e4-7296-4541-ae14-e8d5ac3387ba",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_135410.jpg",
+        "title": "coco_135410",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:31 PM",
+        "wordCount": 103,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A parking meter with blue spheres and a ladder on the sidewalk in an urban setting.\n\nVISIBLE_TEXT: 203  \n01410\n\nOBJECTS: parking meter, ladder, blue spheres, motorcycle rider, cars, trees, buildings\n\nSCENE: Urban street scene with parked vehicles and buildings in the background.\n\nCOLORS_AND_ATTRIBUTES: Black (parking meter), Blue (spheres), Silver (ladder), White (trees), Gray (building), Dark gray (motorcycle)\n\nRELATIONSHIPS: The parking meter is on a blue surface, next to a ladder holding blue spheres. A motorcycle rider is in the background.\n\nDOCUMENT_TYPE: Photo\n\nSEARCH_PHRASES: urban street scene, parking meter with spheres, city sidewalk objects\n\n# OCR Text\n& 2 a ahem\n= EI ay\ni\n\\ 3\n~ 0 Jr\n5",
+        "token_count_estimate": 189,
+        "location": "custom-documents/coco_135410.jpg-ecd450e4-7296-4541-ae14-e8d5ac3387ba.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 3,
+      "item_id": "coco_221693",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_221693.jpg",
+      "modality": "image",
+      "kind": "dog",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "9f1da168-6795-4972-9127-0b1230ed1354",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_221693.jpg",
+        "title": "coco_221693",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:34 PM",
+        "wordCount": 134,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A black and tan dog is playing with an orange frisbee on grass.\n\nVISIBLE_TEXT: None\n\nOBJECTS: dog, frisbee\n\nSCENE: outdoor setting, likely in a park or yard\n\nCOLORS_AND_ATTRIBUTES: black fur, tan markings, green grass, orange frisbee\n\nRELATIONSHIPS: The dog is holding the frisbee with its mouth and appears to be running on the grass.\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: \"dog playing frisbee\", \"black and tan dog\", \"outdoor activity\"\n\n# OCR Text\nali AT ~\nSR a \\ : 3\nSR - 5 a be\nN pe . »\n1 - \\ N ¥\nWEN ™ Ce, x “eh\nAR RNY BNE\nNRRTRN ET i\nCREAR — Ny\nER <\nBa 3 * 3 ; : d\nWO RRES SRP\nSIL ) ng A \\\nERE g a) \\\nATE TT =r | By yy\nSON, yr RNR 7 $ St\nAEE A ae A, PRY Seat an\nJ ARENT Ne SESE et\nLINE GN 5 SP Te",
+        "token_count_estimate": 261,
+        "location": "custom-documents/coco_221693.jpg-9f1da168-6795-4972-9127-0b1230ed1354.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 4,
+      "item_id": "coco_259597",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_259597.jpg",
+      "modality": "image",
+      "kind": "bench",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "63e6911e-c02e-4b17-8ff9-b09797e0de2e",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_259597.jpg",
+        "title": "coco_259597",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:37 PM",
+        "wordCount": 124,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A boy takes a picture of an outdoor performance with his smartphone.\n\nVISIBLE_TEXT: none\n\nOBJECTS: boy, phone, audience, performers, wooden tables and chairs, trees, buildings in the background.\n\nSCENE: Outdoor public event or festival setting.\n\nCOLORS_AND_ATTRIBUTES: Boy's shirt is dark; audience members are wearing various colors. The scene has a warm, golden hue suggesting evening lighting.\n\nRELATIONSHIPS: The boy holds his phone up to take a picture of the performers on stage while seated at wooden tables and chairs in front of an audience.\n\nDOCUMENT_TYPE: Photo\n\nSEARCH_PHRASES: outdoor performance, child taking photo, public event, smartphone photography\n\n# OCR Text\nI a 2 rad\nod (A 1) | [3\nBRE \\ on v2 / Sly [\n\\ | 3] 1 x\n) Ww I b I .\ny 2 3 Nd\na | -",
+        "token_count_estimate": 205,
+        "location": "custom-documents/coco_259597.jpg-63e6911e-c02e-4b17-8ff9-b09797e0de2e.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 5,
+      "item_id": "coco_284623",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_284623.jpg",
+      "modality": "image",
+      "kind": "bottle",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "bad04785-b8e8-438b-a757-77e9a185c9f2",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_284623.jpg",
+        "title": "coco_284623",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:40 PM",
+        "wordCount": 65,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A black cat with striking yellow eyes sits on a bathroom countertop next to a faucet and various bottles.\n\nVISIBLE_TEXT: none\n\nOBJECTS: black cat, faucet, bottles, countertop\n\nSCENE: bathroom\n\nCOLORS_AND_ATTRIBUTES: black fur, yellow eyes, silver faucet, pink bottle, beige countertop\n\nRELATIONSHIPS: cat sitting beside faucet and bottles on countertop\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: \"black cat in bathroom\", \"cat with yellow eyes\", \"bathroom scene with cat\"\n\n# OCR Text\nWEE",
+        "token_count_estimate": 128,
+        "location": "custom-documents/coco_284623.jpg-bad04785-b8e8-438b-a757-77e9a185c9f2.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 6,
+      "item_id": "coco_304560",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_304560.jpg",
+      "modality": "image",
+      "kind": "cat",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "715ad6f6-b10d-4880-9a1b-bf1886cfaeea",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_304560.jpg",
+        "title": "coco_304560",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:42 PM",
+        "wordCount": 107,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A black cat sits in grassy field under sunlight.\n\nVISIBLE_TEXT: None\n\nOBJECTS: cat, grass\n\nSCENE: outdoor setting with grass and sunlight\n\nCOLORS_AND_ATTRIBUTES: black fur, green eyes, yellowish-green grass, bright sunlight\n\nRELATIONSHIPS: cat is sitting on the ground among grass.\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: black cat in field, sunny day cat, outdoor pet scene\n\n# OCR Text\n- wy p\nve » =e\n. w.2 4 br Lt,\nSo Reel © a\nEAN > 1 wo bR i\nPLY A 3 ~ YNZ\nTBA NN 1]\nPYRE ¢ fee £\n7 oy Ss RY\nRa Aes \\ if RE SN Rd\nSY yi lhl =\n08 ! NS A\nSle Wty PRY) Iw Nez T=\nBind ai a AC WAN Vad | ee A Ea",
+        "token_count_estimate": 210,
+        "location": "custom-documents/coco_304560.jpg-715ad6f6-b10d-4880-9a1b-bf1886cfaeea.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 7,
+      "item_id": "coco_324715",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_324715.jpg",
+      "modality": "image",
+      "kind": "laptop",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "a773b06b-115f-4b7a-a1f4-ba48e34cc201",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_324715.jpg",
+        "title": "coco_324715",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:45 PM",
+        "wordCount": 101,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A white Apple laptop is placed on a wooden surface with various tools and materials around it.\n\nVISIBLE_TEXT: none\n\nOBJECTS: white Apple laptop, orange scissors, roll of tape, small metal tool, color swatches, instruction card\n\nSCENE: unknown; the image appears to be taken indoors or in an office setting.\n\nCOLORS_AND_ATTRIBUTES: white (laptop), orange (scissors), metallic (tool), multicolored (swatches)\n\nRELATIONSHIPS: The objects are arranged on a wooden surface with no indication of movement, suggesting they were placed there intentionally for the photo.\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: Apple laptop, tools and materials, color swatches, DIY project, office supplies\n\n# OCR Text\nHT a\n5 b Fed £5) /\nN\np",
+        "token_count_estimate": 178,
+        "location": "custom-documents/coco_324715.jpg-a773b06b-115f-4b7a-a1f4-ba48e34cc201.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 8,
+      "item_id": "coco_388258",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_388258.jpg",
+      "modality": "image",
+      "kind": "airplane",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "52e21206-241a-436c-908c-49b2decea4e8",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_388258.jpg",
+        "title": "coco_388258",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:48 PM",
+        "wordCount": 77,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A blue Cannondale bicycle leans against a bench with an airplane flying in the background.\n\nVISIBLE_TEXT: Cannondale\n\nOBJECTS: bicycle, bench, airplane\n\nSCENE: outdoor setting near water or beach\n\nCOLORS_AND_ATTRIBUTES: blue (bicycle), brown (bench), gray/silver (airplane)\n\nRELATIONSHIPS: bicycle leaning on bench; airplane flying above scene\n\nDOCUMENT_TYPE: photo\n\nSEARCH_PHRASES: bicycle at the beach, Cannondale bike, airplane in sky, outdoor scene with bicycle\n\n# OCR Text\n~~\nIe -.ave\n> Y \\ (R/\n= NLT I)\"\n= = -\\ \\ \\\n- [Esp ;\n(40\n\\ gh 87 T -",
+        "token_count_estimate": 163,
+        "location": "custom-documents/coco_388258.jpg-52e21206-241a-436c-908c-49b2decea4e8.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 9,
+      "item_id": "coco_423506",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_423506.jpg",
+      "modality": "image",
+      "kind": "cup",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "f49296d5-45a8-4e7a-883f-0f69c99392bc",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_423506.jpg",
+        "title": "coco_423506",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:50 PM",
+        "wordCount": 88,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: Two men are smiling and posing together in formal attire at an indoor event.\n\nVISIBLE_TEXT: None\n\nOBJECTS: people\n\nSCENE: Indoor setting with decorative elements, possibly a party or social gathering.\n\nCOLORS_AND_ATTRIBUTES: Green shirt, striped tie (green and black), purple shirt, patterned tie (yellow and brown), gray sweater vest. The background includes beige walls and floral accents.\n\nRELATIONSHIPS: Two men are standing close together, smiling at the camera.\n\nDOCUMENT_TYPE: Photo\n\nSEARCH_PHRASES: formal attire, indoor event, two men posing, social gathering, party attendees\n\n# OCR Text\nf =\nA\nhg | od\n\n» 2 § a",
+        "token_count_estimate": 153,
+        "location": "custom-documents/coco_423506.jpg-f49296d5-45a8-4e7a-883f-0f69c99392bc.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 10,
+      "item_id": "coco_446207",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_446207.jpg",
+      "modality": "image",
+      "kind": "cell_phone",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "46b55a83-9b26-46d7-9226-134b35e0602c",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_446207.jpg",
+        "title": "coco_446207",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 3:19:53 PM",
+        "wordCount": 80,
+        "pageContent": "# WICI Visual Search Index Card\nSEARCH_SUMMARY: A Sony DSLR camera and an older flip phone are placed on a wooden surface.\n\nVISIBLE_TEXT: SONY, 200, Equl., 135\n\nOBJECTS: Sony DSLR camera, flip phone with screen display\n\nSCENE: Wooden surface\n\nCOLORS_AND_ATTRIBUTES: Black (camera), White (flip phone), Brown (wooden surface)\n\nRELATIONSHIPS: Flip phone is in front of the camera on a wooden surface.\n\nDOCUMENT_TYPE: Photo\n\nSEARCH_PHRASES: Sony DSLR, flip phone, vintage technology, photography equipment\n\n# OCR Text\n27 TR. 4 <\nyo | &\nWy, /\n@ N &\nQ\nEs =e eS oo\n| 2232 n or",
+        "token_count_estimate": 160,
+        "location": "custom-documents/coco_446207.jpg-46b55a83-9b26-46d7-9226-134b35e0602c.json",
+        "isDirectUpload": false
+      }
+    }
+  ]
+}

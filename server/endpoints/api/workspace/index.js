@@ -1002,6 +1002,7 @@ function apiWorkspaceEndpoints(app) {
         });
 
         response.status(200).json({
+          rerankLatencyMs: results.rerankLatencyMs ?? null,
           results: results.sources.map((source) => ({
             id: source.id,
             text: source.text,

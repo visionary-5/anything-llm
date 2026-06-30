@@ -7,6 +7,10 @@ const {
 } = require("../../utils/files");
 const OCRLoader = require("../../utils/OCRLoader");
 const { default: slugify } = require("slugify");
+const {
+  combineOcrAndVlmText,
+  describeImageForSearchIndex,
+} = require("../../utils/VLMImageDescription");
 
 async function asImage({
   fullFilePath = "",
@@ -14,9 +18,13 @@ async function asImage({
   options = {},
   metadata = {},
 }) {
-  let content = await new OCRLoader({
+  const ocrContent = await new OCRLoader({
     targetLanguages: options?.ocr?.langList,
   }).ocrImage(fullFilePath);
+  const vlmDescription = await describeImageForSearchIndex(fullFilePath, {
+    filename,
+  });
+  const content = combineOcrAndVlmText(ocrContent, vlmDescription);
 
   if (!content?.length) {
     console.error(`Resulting text content was empty for ${filename}.`);

@@ -1,0 +1,228 @@
+{
+  "generated_at": "2026-06-30T13:06:54+0800",
+  "settings": {
+    "api_base": "http://localhost:3101/api",
+    "db_path": "/Users/saprk/wici-visionary-5/anything-llm/server/storage/anythingllm.db",
+    "corpus_root": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus",
+    "max_rank": 20,
+    "top_ks": [
+      1,
+      3,
+      5
+    ],
+    "ping": {
+      "online": true
+    },
+    "run_label": "M1 Black Cat Smoke",
+    "ingest_path_note": "real AnythingLLM upload API and collector; image files go through Tesseract OCR plus local Ollama VLM description."
+  },
+  "workspace": {
+    "id": 4,
+    "name": "M1 UI Black Cat Hit",
+    "slug": "m1-ui-black-cat-hit",
+    "vectorTag": null,
+    "createdAt": "2026-06-30T05:06:35.548Z",
+    "openAiTemp": null,
+    "openAiHistory": 20,
+    "lastUpdatedAt": "2026-06-30T05:06:35.548Z",
+    "openAiPrompt": "Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. Return only your response to the question given the above information following the users instructions as needed.",
+    "similarityThreshold": 0,
+    "chatProvider": null,
+    "chatModel": null,
+    "topN": 20,
+    "chatMode": "query",
+    "pfpFilename": null,
+    "agentProvider": null,
+    "agentModel": null,
+    "queryRefusalResponse": null,
+    "vectorSearchMode": "default",
+    "router_id": null
+  },
+  "upload_summary": {
+    "total": 5,
+    "ok": 5,
+    "failed": 0
+  },
+  "summary": {
+    "all": {
+      "query_count": 1,
+      "R@1": 1.0,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "MRR": 1.0,
+      "miss_at_5_count": 0
+    },
+    "pure_visual": {
+      "query_count": 1,
+      "R@1": 1.0,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "MRR": 1.0,
+      "miss_at_5_count": 0
+    },
+    "text_or_ocr": {
+      "query_count": 0,
+      "R@1": 0.0,
+      "R@3": 0.0,
+      "R@5": 0.0,
+      "MRR": 0.0,
+      "miss_at_5_count": 0
+    },
+    "by_category": {
+      "pure_visual_photo": {
+        "query_count": 1,
+        "R@1": 1.0,
+        "R@3": 1.0,
+        "R@5": 1.0,
+        "MRR": 1.0,
+        "miss_at_5_count": 0
+      }
+    }
+  },
+  "query_rows": [
+    {
+      "id": "q01_black_cat_sink",
+      "query": "Find the image of a black cat sitting in a bathroom sink.",
+      "category": "pure_visual_photo",
+      "pure_visual": true,
+      "expected_ids": [
+        "coco_284623"
+      ],
+      "first_relevant_rank": 1,
+      "mrr": 1.0,
+      "R@1": 1.0,
+      "R@3": 1.0,
+      "R@5": 1.0,
+      "top_ids": [
+        "coco_284623",
+        "coco_110449",
+        "coco_135410",
+        "coco_259597",
+        "coco_221693"
+      ],
+      "raw_result_count": 5
+    }
+  ],
+  "upload_rows": [
+    {
+      "index": 1,
+      "item_id": "coco_110449",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_110449.jpg",
+      "modality": "image",
+      "kind": "laptop",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "de7e4e95-285a-4925-9c0b-3cf1908ba064",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_110449.jpg",
+        "title": "coco_110449",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 1:06:35 PM",
+        "wordCount": 253,
+        "pageContent": "# OCR Text\nLINEA\n\n# Visual Description\nThe image shows two individuals indoors, seemingly engaged in an activity involving gaming or interaction with electronic devices.\n\n1. **Person on the Left:**\n   - The individual is wearing a white T-shirt with the phrase \"Nobody's Perfect\" printed on it.\n   - They have headphones around their neck and are holding what appears to be a Wii Remote (a motion-sensing controller for Nintendo Wii gaming consoles).\n   - Their hair is medium-length, and they appear focused on something in front of them.\n\n2. **Person on the Right:**\n   - This individual is wearing a dark green T-shirt with a circular logo featuring three crowns.\n   - They are also wearing a dark baseball cap with some red and yellow design elements visible at the top.\n   - Their hands are extended forward, palms up, as if they are either playing a game or demonstrating something.\n\n3. **Background:**\n   - The setting appears to be indoors, possibly in a room with plain walls that have some minor discoloration or marks on them.\n   - There is no visible furniture or other objects directly behind the individuals.\n\n4. **Lighting and Focus:**\n   - The lighting seems dim, suggesting it might be evening or there are limited light sources in the room.\n   - The focus of the image appears to be primarily on the two individuals and their actions rather than any background details.\n\nNo diagrams, charts, tables, or additional text are visible within this image.",
+        "token_count_estimate": 305,
+        "location": "custom-documents/coco_110449.jpg-de7e4e95-285a-4925-9c0b-3cf1908ba064.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 2,
+      "item_id": "coco_135410",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_135410.jpg",
+      "modality": "image",
+      "kind": "bicycle",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "a60f0e01-5e75-43be-bf9a-b21adba587e1",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_135410.jpg",
+        "title": "coco_135410",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 1:06:40 PM",
+        "wordCount": 310,
+        "pageContent": "# OCR Text\n& 2 a ahem\n= EI ay\ni\n\\ 3\n~ 0 Jr\n5\n\n# Visual Description\nThe image depicts an urban street scene with various elements of interest:\n\n1. **Foreground:**\n   - A parking meter is prominently displayed on the left side of the image.\n     - The parking meter has a black body with a digital display showing \"203 01410.\"\n     - Below the display, there's a yellow circular sticker that appears to contain instructions or information related to the parking meter. However, the text is not clearly legible in this image.\n\n2. **Middle Ground:**\n   - A person on a motorcycle is visible in the background.\n     - The rider is wearing a dark jacket and light-colored pants.\n     - The motorcycle has two wheels and appears to be in motion or stopped near the curb.\n\n3. **Right Side:**\n   - A ladder with blue spherical objects attached to it is leaning against an object that is not fully visible in this image.\n     - The spheres are evenly spaced along the rungs of the ladder, suggesting they might be part of a decorative or functional installation.\n\n4. **Background:**\n   - There are several cars parked on the street behind the motorcycle and the parking meter.\n   - Trees with green foliage can be seen in the background, indicating an urban environment with some greenery.\n   - A building is partially visible through the trees; it has a modern architectural style with large windows.\n\n5. **Additional Details:**\n   - The ground near the parking meter appears to have blue plastic or foam-like material scattered around.\n   - There are no visible charts, tables, or diagrams in this image.\n\nThis scene captures an everyday urban environment with elements of transportation and possibly public art or installation.",
+        "token_count_estimate": 365,
+        "location": "custom-documents/coco_135410.jpg-a60f0e01-5e75-43be-bf9a-b21adba587e1.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 3,
+      "item_id": "coco_221693",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_221693.jpg",
+      "modality": "image",
+      "kind": "dog",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "2ac624d6-088f-4ffd-9968-b9661c59482a",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_221693.jpg",
+        "title": "coco_221693",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 1:06:44 PM",
+        "wordCount": 177,
+        "pageContent": "# OCR Text\nali AT ~\nSR a \\ : 3\nSR - 5 a be\nN pe . »\n1 - \\ N ¥\nWEN ™ Ce, x “eh\nAR RNY BNE\nNRRTRN ET i\nCREAR — Ny\nER <\nBa 3 * 3 ; : d\nWO RRES SRP\nSIL ) ng A \\\nERE g a) \\\nATE TT =r | By yy\nSON, yr RNR 7 $ St\nAEE A ae A, PRY Seat an\nJ ARENT Ne SESE et\nLINE GN 5 SP Te\n\n# Visual Description\nThe image depicts a black and tan dog playing with an orange frisbee on a grassy field. The dog appears to be mid-action, possibly running or preparing to throw the frisbee. Its ears are perked up, indicating alertness or excitement. The dog's fur is short and shiny, with distinct markings: a white stripe down its face, tan paws, and a black body with some tan patches on its legs. The background consists of lush green grass, suggesting an outdoor setting such as a park or backyard. There are no visible texts, diagrams, charts, tables, or other objects in the image besides the dog and the frisbee.",
+        "token_count_estimate": 273,
+        "location": "custom-documents/coco_221693.jpg-2ac624d6-088f-4ffd-9968-b9661c59482a.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 4,
+      "item_id": "coco_259597",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_259597.jpg",
+      "modality": "image",
+      "kind": "bench",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "41ad9078-2113-4e68-9886-d7cd1b151d98",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_259597.jpg",
+        "title": "coco_259597",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 1:06:47 PM",
+        "wordCount": 283,
+        "pageContent": "# OCR Text\nI a 2 rad\nod (A 1) | [3\nBRE \\ on v2 / Sly [\n\\ | 3] 1 x\n) Ww I b I .\ny 2 3 Nd\na | -\n\n# Visual Description\nThe provided image depicts an outdoor scene with a group of people gathered around what appears to be a stage or performance area. The setting is likely during the evening as indicated by the warm lighting that suggests artificial illumination rather than natural sunlight.\n\nIn the foreground, there is a young individual facing away from the camera and holding up a mobile phone, seemingly capturing an image or video of the event taking place on the stage. This person has short dark hair and is wearing a dark-colored shirt with lighter trim around the collar.\n\nThe background shows several people seated at tables arranged in rows, suggesting that this might be some form of public gathering such as a performance, festival, or community event. The individuals appear to be spectators enjoying the show on stage.\n\nOn the stage itself, there are performers dressed in costumes that suggest they may be partaking in a historical reenactment or theatrical production. One performer is wearing what appears to be a traditional dress with a headpiece, while another has a blue outfit and a hat, possibly indicating different characters or roles within the performance.\n\nThe architecture of the building behind the stage features arched windows and doors, which could indicate that this event is taking place in an older structure such as a church or historical building. The warm lighting enhances the ambiance of the scene, creating a cozy and inviting atmosphere for the audience.\n\nNo text, diagrams, charts, tables, or other specific content can be discerned from the image provided.",
+        "token_count_estimate": 349,
+        "location": "custom-documents/coco_259597.jpg-41ad9078-2113-4e68-9886-d7cd1b151d98.json",
+        "isDirectUpload": false
+      }
+    },
+    {
+      "index": 5,
+      "item_id": "coco_284623",
+      "path": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/images/coco_284623.jpg",
+      "modality": "image",
+      "kind": "bottle",
+      "ok": true,
+      "error": null,
+      "document": {
+        "id": "f47df912-69a9-413c-9aa3-a2720e205dec",
+        "url": "file:///Users/saprk/wici-visionary-5/anything-llm/collector/hotdir/coco_284623.jpg",
+        "title": "coco_284623",
+        "docAuthor": "Unknown",
+        "description": "Unknown",
+        "docSource": "M0 true-ingest multimodal corpus",
+        "chunkSource": "",
+        "published": "6/30/2026, 1:06:52 PM",
+        "wordCount": 147,
+        "pageContent": "# OCR Text\nWEE\n\n# Visual Description\nThe image shows a black cat with striking yellow-green eyes sitting on what appears to be a bathroom countertop. The cat is positioned centrally in the frame, facing slightly towards the camera.\n\nIn the background, there are several items visible:\n1. A pink bottle of lotion or soap labeled \"Pink & Green\" with an orange flower design.\n2. Another bottle that seems to have a pump dispenser and possibly contains hand sanitizer or another liquid product.\n3. A clear plastic container holding what looks like cotton balls or similar items.\n\nThe countertop is made of granite, featuring shades of brown, beige, and black. The faucet has two handles, one for hot water and the other for cold water, both with a shiny metallic finish. The wall behind the cat appears to be painted in a light cream color.\n\nNo text, diagrams, charts, or tables are present within this image.",
+        "token_count_estimate": 188,
+        "location": "custom-documents/coco_284623.jpg-f47df912-69a9-413c-9aa3-a2720e205dec.json",
+        "isDirectUpload": false
+      }
+    }
+  ]
+}

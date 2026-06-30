@@ -2,6 +2,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { VALID_LANGUAGE_CODES } = require("./validLangs");
+const {
+  combineOcrAndVlmText,
+  describeImageForSearchIndex,
+} = require("../VLMImageDescription");
 
 class OCRLoader {
   /**
@@ -170,13 +174,17 @@ class OCRLoader {
               const imageBuffer = await pdfSharp.pageToBuffer({ page });
               if (!imageBuffer) continue;
               const { data } = await worker.recognize(imageBuffer, {}, "text");
+              const vlmDescription = await describeImageForSearchIndex(
+                imageBuffer,
+                { filename: `${documentTitle} page ${pageNum}` }
+              );
               this.log(
                 `✅ \x1b[34m[Worker ${
                   workerIndex + 1
                 }]\x1b[0m completed pg${pageNum}`
               );
               results.push({
-                pageContent: data.text,
+                pageContent: combineOcrAndVlmText(data.text, vlmDescription),
                 metadata: {
                   ...metadata,
                   loc: { pageNumber: pageNum },

@@ -6,6 +6,11 @@ const { storeVectorResult, cachedVectorInformation } = require("../../files");
 const { v4: uuidv4 } = require("uuid");
 const { sourceIdentifier } = require("../../chats");
 const { NativeEmbeddingReranker } = require("../../EmbeddingRerankers/native");
+const {
+  getWiciRerankPool,
+  isWiciRerankEnabled,
+  rerankDocuments,
+} = require("../../EmbeddingRerankers/wiciLocalBge");
 const { VectorDatabase } = require("../base");
 const path = require("path");
 
@@ -176,6 +181,7 @@ class LanceDb extends VectorDatabase {
   async similarityResponse({
     client,
     namespace,
+    query = "",
     queryVector,
     similarityThreshold = 0.25,
     topN = 4,
@@ -191,27 +197,52 @@ class LanceDb extends VectorDatabase {
     const response = await collection
       .vectorSearch(queryVector)
       .distanceType("cosine")
-      .limit(topN)
+      .limit(isWiciRerankEnabled() ? Math.max(topN, getWiciRerankPool()) : topN)
       .toArray();
 
-    response.forEach((item) => {
+    let rerankLatencyMs = null;
+    let rerankedResponse = null;
+    if (isWiciRerankEnabled()) {
+      try {
+        rerankedResponse = await rerankDocuments(query, response, {
+          topK: response.length,
+        });
+        rerankLatencyMs = rerankedResponse?.latencyMs ?? null;
+      } catch (error) {
+        this.logger(
+          `Local BGE rerank failed; falling back to dense order: ${error.message}`
+        );
+      }
+    }
+
+    const orderedResponse = rerankedResponse?.documents?.length
+      ? rerankedResponse.documents
+      : response;
+
+    for (const item of orderedResponse) {
       if (this.distanceToSimilarity(item._distance) < similarityThreshold)
-        return;
+        continue;
       const { vector: _, ...rest } = item;
       if (filterIdentifiers.includes(sourceIdentifier(rest))) {
         this.logger(
           "A source was filtered from context as it's parent document is pinned."
         );
-        return;
+        continue;
       }
 
       result.contextTexts.push(rest.text);
       result.sourceDocuments.push({
         ...rest,
-        score: this.distanceToSimilarity(item._distance),
+        score: item?.rerank_score ?? this.distanceToSimilarity(item._distance),
       });
-      result.scores.push(this.distanceToSimilarity(item._distance));
-    });
+      result.scores.push(
+        item?.rerank_score ?? this.distanceToSimilarity(item._distance)
+      );
+
+      if (result.contextTexts.length >= topN) break;
+    }
+
+    result.rerankLatencyMs = rerankLatencyMs;
 
     return result;
   }
@@ -429,7 +460,8 @@ class LanceDb extends VectorDatabase {
     }
 
     const queryVector = await LLMConnector.embedTextInput(input);
-    const result = rerank
+    const useNativeRerank = rerank && !isWiciRerankEnabled();
+    const result = useNativeRerank
       ? await this.rerankedSimilarityResponse({
           client,
           namespace,
@@ -442,6 +474,7 @@ class LanceDb extends VectorDatabase {
       : await this.similarityResponse({
           client,
           namespace,
+          query: input,
           queryVector,
           similarityThreshold,
           topN,
@@ -455,6 +488,7 @@ class LanceDb extends VectorDatabase {
     return {
       contextTexts,
       sources: this.curateSources(sources),
+      rerankLatencyMs: result.rerankLatencyMs ?? null,
       message: false,
     };
   }

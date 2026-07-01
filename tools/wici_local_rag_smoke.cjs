@@ -226,6 +226,20 @@ async function main() {
       mustMatch: [/Time per Query|耗时/i, /Performance|F1|性能/i],
     },
     {
+      name: "adaptive-followup-table3",
+      title: "2403.14403v2.pdf",
+      message:
+        "Table 3 里，分类器预测的三种标签分别占多少比例？每类对应的 Time/Query 是多少？",
+      mustMatch: [
+        /8\.60|8\.6/,
+        /53\.33/,
+        /38\.07/,
+        /0\.35/,
+        /3\.08/,
+        /27\.18/,
+      ],
+    },
+    {
       name: "numeric-miss",
       noSources: true,
       message:

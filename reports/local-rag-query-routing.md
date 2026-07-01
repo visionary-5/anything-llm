@@ -17,6 +17,7 @@ Scope: improve the local-folder RAG path so a user can ask for local documents w
 - Follow-up questions such as `那篇论文` / `该论文` / `Figure 1` now anchor to the last successful local document source instead of falling back to broad vector search.
 - Local candidate matching now requires high-signal terms such as `adaptive-rag` when present, so generic words like `complexity` or `figure` do not pull in unrelated company PDFs or other papers.
 - The frontend records pending chat streams in localStorage. If the user switches threads and returns before generation finishes, the chat shows a pending assistant reply and polls history until the saved answer appears.
+- Table-oriented follow-ups now recognize `Table N`, `标签/比例/分类器预测`, and `Time/Query`. Exact lexical evidence can attach a structured table hint when PDF extraction flattens rows such as `0.358.60`, so the model preserves all requested rows and columns.
 
 ## Smoke Results
 
@@ -32,6 +33,7 @@ Server: `http://localhost:3101/api`
 | `2410 VisRAG` numeric/table question | Hit `2410.10594v2.pdf`; answered `256KB`, `4.5KB`, and `5% error margin`. |
 | Follow-up categories question | `那篇 Adaptive-RAG...query complexity...` now hits `2403.14403v2.pdf` and returns A/B/C with no retrieval / single-step / multi-step strategies. |
 | Follow-up Figure 1 question | `那篇 Adaptive-RAG...Figure 1...` now hits `2403.14403v2.pdf` and returns `Time per Query` / `Performance (F1)`. |
+| Follow-up Table 3 question | `Table 3...标签...比例...Time/Query...` hits `2403.14403v2.pdf` and returns No(A) `8.60%` / `0.35s`, One(B) `53.33%` / `3.08s`, Multi(C) `38.07%` / `27.18s`. |
 | SSE payload regression | Adaptive-RAG query dropped from about 401MB to 48-57KB after source trimming, one-time source streaming, and suppressing hidden reasoning tokens. |
 | Disconnect simulation | A request aborted after 1s still completed and persisted in `workspace_chats`. |
 

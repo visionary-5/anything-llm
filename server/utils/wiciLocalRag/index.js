@@ -18,6 +18,12 @@ const QUERY_EXPANSIONS = {
   固定: ["fixed", "one-size-fits-all", "unnecessary", "overhead"],
   不够: ["inadequate", "insufficient", "unnecessary", "overhead"],
   复杂: ["complexity", "complex", "multi-step"],
+  几类: ["class", "classes", "levels", "labels"],
+  分成: ["class", "classes", "levels", "labels"],
+  横轴: ["x-axis", "axis", "time per query"],
+  纵轴: ["y-axis", "axis", "performance", "f1"],
+  耗时: ["time per query", "efficiency"],
+  性能: ["performance", "f1"],
   权重: ["weight", "weighted", "pooling"],
   公式: ["equation", "formula"],
   图表: ["chart", "figure", "table"],
@@ -70,7 +76,12 @@ function searchTerms(query = "") {
 
 function queryProfile(query = "") {
   const normalized = normalizeText(query);
+  const figureMatch = normalized.match(/(?:figure|fig\.?|图)\s*(\d+)/i);
   return {
+    figureNumber: figureMatch?.[1] || null,
+    wantsAxisExplanation: /(横轴|纵轴|x-axis|y-axis|axis|坐标)/i.test(
+      normalized
+    ),
     wantsMemoryComparison: /(memory|colpali|visrag-ret|省内存|内存|更省)/i.test(
       normalized
     ),
@@ -181,6 +192,16 @@ function scoreWindow(body = "", terms = [], profile = {}) {
   if (/\b\d+(\.\d+)?\s?(kb|mb|gb|%)\b/i.test(body)) score += 3;
   if (/table|figure|evaluation metrics|memory efficiency/i.test(body))
     score += 2;
+  if (
+    profile.figureNumber &&
+    new RegExp(`figure\\s*${profile.figureNumber}\\b`, "i").test(body)
+  )
+    score += 40;
+  if (
+    profile.wantsAxisExplanation &&
+    /time per query|performance\s*\(f1\)|performance vs time/i.test(body)
+  )
+    score += 20;
   if (
     profile.wantsMemoryComparison &&
     /colpali[\s\S]{0,500}(256\s?kb|1030[\s\S]{0,80}128-dim|visrag-ret[\s\S]{0,300}4\.5\s?kb)/i.test(

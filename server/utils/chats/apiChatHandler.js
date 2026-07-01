@@ -14,6 +14,7 @@ const {
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
   hasLocalMatchedDocuments,
+  localIndexWithHistoryAnchors,
   sourcesForClient,
 } = require("./index");
 const {
@@ -323,6 +324,11 @@ async function chatSync({
     messageLimit,
     apiSessionId: sessionId,
   });
+  const localIndex = localIndexWithHistoryAnchors(
+    onDemandLocalIndex,
+    rawHistory,
+    message
+  );
 
   await new DocumentManager({
     workspace,
@@ -407,11 +413,11 @@ async function chatSync({
   });
   const constrainedSources = constrainSourcesToLocalMatches(
     filledSources.sources,
-    onDemandLocalIndex
+    localIndex
   );
   const evidenceSources = evidenceSourcesForLocalMatches(
     filledSources.sources,
-    onDemandLocalIndex
+    localIndex
   );
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: message,
@@ -430,7 +436,7 @@ async function chatSync({
   contextTexts = [
     ...contextTexts,
     ...lexicalEvidence.contextTexts,
-    ...(hasLocalMatchedDocuments(onDemandLocalIndex)
+    ...(hasLocalMatchedDocuments(localIndex)
       ? []
       : formatSourcesForContext(
           constrainedSources,
@@ -536,7 +542,7 @@ async function chatSync({
     textResponse,
     sources: responseSources,
     metrics: performanceMetrics,
-    wiciLocalIndex: onDemandLocalIndex,
+    wiciLocalIndex: localIndex,
   };
 }
 
@@ -764,6 +770,11 @@ async function streamChat({
     messageLimit,
     apiSessionId: sessionId,
   });
+  const localIndex = localIndexWithHistoryAnchors(
+    onDemandLocalIndex,
+    rawHistory,
+    message
+  );
 
   // Look for pinned documents and see if the user decided to use this feature. We will also do a vector search
   // as pinning is a supplemental tool but it should be used with caution since it can easily blow up a context window.
@@ -855,11 +866,11 @@ async function streamChat({
   });
   const constrainedSources = constrainSourcesToLocalMatches(
     filledSources.sources,
-    onDemandLocalIndex
+    localIndex
   );
   const evidenceSources = evidenceSourcesForLocalMatches(
     filledSources.sources,
-    onDemandLocalIndex
+    localIndex
   );
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: message,
@@ -878,7 +889,7 @@ async function streamChat({
   contextTexts = [
     ...contextTexts,
     ...lexicalEvidence.contextTexts,
-    ...(hasLocalMatchedDocuments(onDemandLocalIndex)
+    ...(hasLocalMatchedDocuments(localIndex)
       ? []
       : formatSourcesForContext(
           constrainedSources,
@@ -902,7 +913,7 @@ async function streamChat({
       close: true,
       error: null,
       metrics: {},
-      wiciLocalIndex: onDemandLocalIndex,
+      wiciLocalIndex: localIndex,
     });
 
     await WorkspaceChats.new({
@@ -961,7 +972,7 @@ async function streamChat({
       close: true,
       error: false,
       metrics,
-      wiciLocalIndex: onDemandLocalIndex,
+      wiciLocalIndex: localIndex,
     });
   } else {
     const stream = await LLMConnector.streamGetChatCompletion(messages, {
@@ -996,6 +1007,7 @@ async function streamChat({
       chatId: chat.id,
       metrics,
       sources: responseSources,
+      wiciLocalIndex: localIndex,
     });
     return;
   }
@@ -1009,7 +1021,7 @@ async function streamChat({
     error:
       "The model stream ended without a final answer. Retry the prompt or switch to a non-reasoning local model.",
     metrics,
-    wiciLocalIndex: onDemandLocalIndex,
+    wiciLocalIndex: localIndex,
   });
   return;
 }

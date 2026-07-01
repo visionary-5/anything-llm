@@ -1,4 +1,4 @@
-import { ABORT_STREAM_EVENT } from "@/utils/chat";
+import { ABORT_STREAM_EVENT, clearPendingChatStream } from "@/utils/chat";
 import { API_BASE } from "@/utils/constants";
 import { baseHeaders, safeJsonParse } from "@/utils/request";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
@@ -104,63 +104,67 @@ const WorkspaceThread = {
       handleChat({ id: v4(), type: "stopGeneration" });
     });
 
-    await fetchEventSource(
-      `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`,
-      {
-        method: "POST",
-        body: JSON.stringify({ message, attachments }),
-        headers: baseHeaders(),
-        signal: ctrl.signal,
-        openWhenHidden: true,
-        async onopen(response) {
-          if (response.ok) {
-            return; // everything's good
-          } else if (
-            response.status >= 400 &&
-            response.status < 500 &&
-            response.status !== 429
-          ) {
+    try {
+      await fetchEventSource(
+        `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`,
+        {
+          method: "POST",
+          body: JSON.stringify({ message, attachments }),
+          headers: baseHeaders(),
+          signal: ctrl.signal,
+          openWhenHidden: true,
+          async onopen(response) {
+            if (response.ok) {
+              return; // everything's good
+            } else if (
+              response.status >= 400 &&
+              response.status < 500 &&
+              response.status !== 429
+            ) {
+              handleChat({
+                id: v4(),
+                type: "abort",
+                textResponse: null,
+                sources: [],
+                close: true,
+                error: `An error occurred while streaming response. Code ${response.status}`,
+              });
+              ctrl.abort();
+              throw new Error("Invalid Status code response.");
+            } else {
+              handleChat({
+                id: v4(),
+                type: "abort",
+                textResponse: null,
+                sources: [],
+                close: true,
+                error: `An error occurred while streaming response. Unknown Error.`,
+              });
+              ctrl.abort();
+              throw new Error("Unknown error");
+            }
+          },
+          async onmessage(msg) {
+            const chatResult = safeJsonParse(msg.data, null);
+            if (chatResult) handleChat(chatResult);
+          },
+          onerror(err) {
             handleChat({
               id: v4(),
               type: "abort",
               textResponse: null,
               sources: [],
               close: true,
-              error: `An error occurred while streaming response. Code ${response.status}`,
+              error: `An error occurred while streaming response. ${err.message}`,
             });
             ctrl.abort();
-            throw new Error("Invalid Status code response.");
-          } else {
-            handleChat({
-              id: v4(),
-              type: "abort",
-              textResponse: null,
-              sources: [],
-              close: true,
-              error: `An error occurred while streaming response. Unknown Error.`,
-            });
-            ctrl.abort();
-            throw new Error("Unknown error");
-          }
-        },
-        async onmessage(msg) {
-          const chatResult = safeJsonParse(msg.data, null);
-          if (chatResult) handleChat(chatResult);
-        },
-        onerror(err) {
-          handleChat({
-            id: v4(),
-            type: "abort",
-            textResponse: null,
-            sources: [],
-            close: true,
-            error: `An error occurred while streaming response. ${err.message}`,
-          });
-          ctrl.abort();
-          throw new Error();
-        },
-      }
-    );
+            throw new Error();
+          },
+        }
+      );
+    } finally {
+      clearPendingChatStream({ workspaceSlug, threadSlug });
+    }
   },
   _deleteEditedChats: async function (
     workspaceSlug = "",

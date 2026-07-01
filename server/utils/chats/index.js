@@ -161,6 +161,182 @@ function hasLocalMatchedDocuments(localIndex = {}) {
   return localMatchedDocuments(localIndex).length > 0;
 }
 
+function safeJsonParse(value, fallback = null) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeLocalAnchorText(value = "") {
+  return String(value).toLowerCase().normalize("NFKC").replace(/\s+/g, " ");
+}
+
+function localAnchorTerms(query = "") {
+  const normalized = normalizeLocalAnchorText(query);
+  const terms = new Set();
+  for (const match of normalized.matchAll(/[a-z0-9][a-z0-9._-]{2,}/g))
+    terms.add(match[0]);
+  for (const match of normalized.matchAll(/[\u4e00-\u9fff]{2,}/g))
+    terms.add(match[0]);
+  const generic = new Set([
+    "the",
+    "and",
+    "with",
+    "this",
+    "that",
+    "paper",
+    "query",
+    "complexity",
+    "figure",
+    "table",
+    "pdf",
+    "local",
+    "file",
+    "document",
+    "那篇",
+    "这篇",
+    "该论文",
+    "论文",
+    "作者",
+    "系统",
+    "分别",
+    "什么",
+    "横轴",
+    "纵轴",
+  ]);
+  return Array.from(terms).filter((term) => !generic.has(term));
+}
+
+function localDocumentFollowupQuery(query = "") {
+  return /(那篇|这篇|该论文|该文|上面|刚才|前面|上一轮|继续|figure\s*\d+|fig\.\s*\d+|图\s*\d+|表\s*\d+|that paper|this paper|the paper|same paper|it\b)/i.test(
+    query
+  );
+}
+
+function responseLooksLikeLocalMiss(response = {}) {
+  const text = normalizeLocalAnchorText(response?.text || "");
+  return /(未找到|没有找到|无法基于|不包含|not found|does not contain|no relevant)/i.test(
+    text
+  );
+}
+
+function sourceLooksLocal(source = {}) {
+  const values = [
+    source.sourcePath,
+    source.chunkSource,
+    source.url,
+    source.docSource,
+    source.location,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value));
+  return values.some(
+    (value) =>
+      value.startsWith("file://") ||
+      value.startsWith("/") ||
+      /wici local/i.test(value)
+  );
+}
+
+function historySourceToMatch(source = {}, score = 0, matchedTerms = []) {
+  return {
+    title: source.title || source.filename || source.name,
+    location: source.location,
+    chunkSource: source.chunkSource,
+    sourcePath: source.sourcePath,
+    docSource: source.docSource || "WICI local history anchor",
+    score,
+    wiciLocalSourceMatch: true,
+    wiciLocalHistoryAnchor: true,
+    wiciLocalMatchedTerms: matchedTerms,
+  };
+}
+
+function scoreHistoryLocalSource(source = {}, query = "", recency = 0) {
+  const terms = localAnchorTerms(query);
+  const searchable = normalizeLocalAnchorText(
+    [
+      source.title,
+      source.filename,
+      source.name,
+      source.sourcePath,
+      source.chunkSource,
+      source.url,
+      source.docSource,
+      String(source.text || source.pageContent || "").slice(0, 2_000),
+    ]
+      .filter(Boolean)
+      .join("\n")
+  );
+  const matchedTerms = terms.filter((term) => searchable.includes(term));
+  const hasSpecificTerms = terms.some((term) => /^[a-z0-9][a-z0-9._-]{3,}$/i.test(term));
+  if (hasSpecificTerms && matchedTerms.length === 0) return null;
+
+  const followup = localDocumentFollowupQuery(query);
+  if (!followup && matchedTerms.length === 0) return null;
+
+  const score =
+    Math.max(0, 20 - recency) +
+    matchedTerms.reduce((total, term) => {
+      if (/^\d{3,}/.test(term)) return total + 100;
+      if (/^[a-z0-9][a-z0-9._-]{3,}$/i.test(term)) return total + 30;
+      return total + 8;
+    }, 0) +
+    (followup ? 10 : 0);
+
+  return historySourceToMatch(source, score, matchedTerms);
+}
+
+function localHistoryMatchesForQuery(rawHistory = [], query = "") {
+  const matches = [];
+  const seen = new Set();
+  const recent = rawHistory.slice(-8).reverse();
+  for (const [recency, chat] of recent.entries()) {
+    const response =
+      typeof chat?.response === "string"
+        ? safeJsonParse(chat.response, {})
+        : chat?.response || {};
+    if (responseLooksLikeLocalMiss(response)) continue;
+    const sources = Array.isArray(response?.sources) ? response.sources : [];
+    for (const source of sources) {
+      if (!sourceLooksLocal(source) || !source.location) continue;
+      const match = scoreHistoryLocalSource(source, query, recency);
+      if (!match) continue;
+      const key = match.location || match.sourcePath || match.chunkSource;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      matches.push(match);
+    }
+  }
+  return matches.sort((a, b) => b.score - a.score).slice(0, 5);
+}
+
+function localIndexWithHistoryAnchors(localIndex = {}, rawHistory = [], query = "") {
+  if (localIndex?.strictLocalMiss) return localIndex;
+  const historyMatches = localHistoryMatchesForQuery(rawHistory, query);
+  if (historyMatches.length === 0) return localIndex;
+
+  if (localDocumentFollowupQuery(query)) {
+    return {
+      ...localIndex,
+      reason: "history_local_document_anchor",
+      matchedDocuments: historyMatches,
+    };
+  }
+
+  if (!hasLocalMatchedDocuments(localIndex)) {
+    return {
+      ...localIndex,
+      reason: "history_local_document_match",
+      matchedDocuments: historyMatches,
+    };
+  }
+
+  return localIndex;
+}
+
 function constrainSourcesToLocalMatches(sources = [], localIndex = {}) {
   const matches = localMatchedDocuments(localIndex);
   if (matches.length === 0) return sources;
@@ -294,6 +470,7 @@ module.exports = {
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
   hasLocalMatchedDocuments,
+  localIndexWithHistoryAnchors,
   sourcesForClient,
   recentChatHistory,
   chatPrompt,

@@ -1,6 +1,51 @@
 import { THREAD_RENAME_EVENT } from "@/components/Sidebar/ActiveWorkspaces/ThreadContainer";
 import { emitAssistantMessageCompleteEvent } from "@/components/contexts/TTSProvider";
 export const ABORT_STREAM_EVENT = "abort-chat-stream";
+const PENDING_CHAT_STREAMS = "wici_pending_chat_streams";
+
+function pendingStreamKey(workspaceSlug, threadSlug = null) {
+  return `${workspaceSlug}:${threadSlug || "default"}`;
+}
+
+function pendingStreams() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_CHAT_STREAMS) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writePendingStreams(streams = {}) {
+  localStorage.setItem(PENDING_CHAT_STREAMS, JSON.stringify(streams));
+}
+
+export function markPendingChatStream({
+  workspaceSlug,
+  threadSlug = null,
+  prompt = "",
+  historyLength = 0,
+}) {
+  if (!workspaceSlug) return;
+  const streams = pendingStreams();
+  streams[pendingStreamKey(workspaceSlug, threadSlug)] = {
+    prompt,
+    historyLength,
+    startedAt: Date.now(),
+  };
+  writePendingStreams(streams);
+}
+
+export function getPendingChatStream(workspaceSlug, threadSlug = null) {
+  if (!workspaceSlug) return null;
+  return pendingStreams()[pendingStreamKey(workspaceSlug, threadSlug)] || null;
+}
+
+export function clearPendingChatStream({ workspaceSlug, threadSlug = null }) {
+  if (!workspaceSlug) return;
+  const streams = pendingStreams();
+  delete streams[pendingStreamKey(workspaceSlug, threadSlug)];
+  writePendingStreams(streams);
+}
 
 // For handling of chat responses in the frontend by their various types.
 export default function handleChat(

@@ -14,6 +14,9 @@ Scope: improve the local-folder RAG path so a user can ask for local documents w
 - Ollama streaming now sends sources once at stream close instead of repeating sources on every token.
 - Ollama `thinking` tokens are not streamed to the UI; only final answer content is streamed and persisted.
 - If the browser/SSE connection closes, Ollama generation continues so the completed answer can still be persisted.
+- Follow-up questions such as `那篇论文` / `该论文` / `Figure 1` now anchor to the last successful local document source instead of falling back to broad vector search.
+- Local candidate matching now requires high-signal terms such as `adaptive-rag` when present, so generic words like `complexity` or `figure` do not pull in unrelated company PDFs or other papers.
+- The frontend records pending chat streams in localStorage. If the user switches threads and returns before generation finishes, the chat shows a pending assistant reply and polls history until the saved answer appears.
 
 ## Smoke Results
 
@@ -27,6 +30,8 @@ Server: `http://localhost:3101/api`
 | Fuzzy `Adaptive-RAG` without path/number | Hit `2403.14403v2.pdf`; answered the core idea. |
 | Wrong numeric hint `9999 Adaptive-RAG` | Returned a local miss; did not use unrelated sources. |
 | `2410 VisRAG` numeric/table question | Hit `2410.10594v2.pdf`; answered `256KB`, `4.5KB`, and `5% error margin`. |
+| Follow-up categories question | `那篇 Adaptive-RAG...query complexity...` now hits `2403.14403v2.pdf` and returns A/B/C with no retrieval / single-step / multi-step strategies. |
+| Follow-up Figure 1 question | `那篇 Adaptive-RAG...Figure 1...` now hits `2403.14403v2.pdf` and returns `Time per Query` / `Performance (F1)`. |
 | SSE payload regression | Adaptive-RAG query dropped from about 401MB to 48-57KB after source trimming, one-time source streaming, and suppressing hidden reasoning tokens. |
 | Disconnect simulation | A request aborted after 1s still completed and persisted in `workspace_chats`. |
 

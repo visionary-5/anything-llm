@@ -270,6 +270,29 @@ function numericQueryTerms(query = "") {
   return queryTerms(query).filter((term) => /^\d{3,}/.test(term));
 }
 
+function highSignalQueryTerms(terms = []) {
+  const generic = new Set([
+    "query",
+    "complexity",
+    "figure",
+    "table",
+    "paper",
+    "pdf",
+    "local",
+    "document",
+    "论文",
+    "文档",
+    "图表",
+    "图片",
+  ]);
+  return terms.filter((term) => {
+    const normalized = normalizeText(term);
+    if (/^\d{3,}/.test(normalized)) return true;
+    if (generic.has(normalized)) return false;
+    return /^[a-z0-9][a-z0-9._-]{3,}$/i.test(normalized);
+  });
+}
+
 function queryIntent(query = "") {
   const normalized = normalizeText(query);
   const wantsImage =
@@ -431,6 +454,7 @@ function stateStrongMatchesForQuery(state, query = "") {
   );
   if (terms.length === 0) return [];
   const numericTerms = numericQueryTerms(query);
+  const highSignalTerms = highSignalQueryTerms(terms);
 
   const matches = [];
   for (const [key, row] of Object.entries(state?.files || {})) {
@@ -462,6 +486,22 @@ function stateStrongMatchesForQuery(state, query = "") {
         );
       });
       if (matchedTerms.length === 0) continue;
+      if (
+        highSignalTerms.length > 0 &&
+        !matchedTerms.some((term) =>
+          highSignalTerms.includes(normalizeText(term))
+        )
+      )
+        continue;
+
+      const score = matchedTerms.reduce((total, term) => {
+        const normalizedTerm = normalizeText(term);
+        if (/^\d{3,}/.test(normalizedTerm)) return total + 100;
+        if (highSignalTerms.includes(normalizedTerm)) return total + 80;
+        if (/^[a-z0-9][a-z0-9._-]{3,}$/i.test(normalizedTerm))
+          return total + 12;
+        return total + 6;
+      }, 0);
 
       matches.push({
         title: document?.title || path.basename(key),
@@ -469,7 +509,7 @@ function stateStrongMatchesForQuery(state, query = "") {
         chunkSource: document?.chunkSource,
         sourcePath: key,
         docSource: document?.docSource,
-        score: matchedTerms.some((term) => /^\d{3,}/.test(term)) ? 100 : 50,
+        score,
         wiciLocalSourceMatch: true,
         wiciLocalMatchedTerms: matchedTerms,
       });

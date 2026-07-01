@@ -17,6 +17,7 @@ const {
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
   hasLocalMatchedDocuments,
+  localIndexWithHistoryAnchors,
   sourcesForClient,
 } = require("./index");
 const { maybeIndexLocalSourcesForQuery } = require("../wiciLocalSources");
@@ -178,6 +179,11 @@ async function streamChatWithWorkspace(
     parsedFiles: prefetchedParsedFiles,
   } = prefetchedContext ??
   (await recentChatHistory({ user, workspace, thread, messageLimit }));
+  const localIndex = localIndexWithHistoryAnchors(
+    onDemandLocalIndex,
+    rawHistory,
+    updatedMessage
+  );
 
   // Pinned docs — reuse pre-fetched if available, otherwise fetch with token cap.
   const pinnedDocs =
@@ -258,11 +264,11 @@ async function streamChatWithWorkspace(
   });
   const constrainedSources = constrainSourcesToLocalMatches(
     filledSources.sources,
-    onDemandLocalIndex
+    localIndex
   );
   const evidenceSources = evidenceSourcesForLocalMatches(
     filledSources.sources,
-    onDemandLocalIndex
+    localIndex
   );
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: updatedMessage,
@@ -281,7 +287,7 @@ async function streamChatWithWorkspace(
   contextTexts = [
     ...contextTexts,
     ...lexicalEvidence.contextTexts,
-    ...(hasLocalMatchedDocuments(onDemandLocalIndex)
+    ...(hasLocalMatchedDocuments(localIndex)
       ? []
       : formatSourcesForContext(
           constrainedSources,
@@ -401,7 +407,7 @@ async function streamChatWithWorkspace(
       error: false,
       chatId: chat.id,
       metrics,
-      wiciLocalIndex: onDemandLocalIndex,
+      wiciLocalIndex: localIndex,
     });
     return;
   }
@@ -415,7 +421,7 @@ async function streamChatWithWorkspace(
     error:
       "The model stream ended without a final answer. Retry the prompt or switch to a non-reasoning local model.",
     metrics,
-    wiciLocalIndex: onDemandLocalIndex,
+    wiciLocalIndex: localIndex,
   });
   return;
 }

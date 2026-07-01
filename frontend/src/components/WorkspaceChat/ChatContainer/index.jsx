@@ -6,7 +6,12 @@ import PromptInput, {
   PROMPT_INPUT_ID,
 } from "./PromptInput";
 import Workspace from "@/models/workspace";
-import handleChat, { ABORT_STREAM_EVENT } from "@/utils/chat";
+import handleChat, {
+  ABORT_STREAM_EVENT,
+  clearPendingChatStream,
+  getPendingChatStream,
+  markPendingChatStream,
+} from "@/utils/chat";
 import { isMobile } from "react-device-detect";
 import { SidebarMobileHeader } from "../../Sidebar";
 import { useNavigate } from "react-router-dom";
@@ -140,6 +145,12 @@ export default function ChatContainer({
     if (listening) {
       endSTTSession();
     }
+    markPendingChatStream({
+      workspaceSlug: workspace.slug,
+      threadSlug: activeThreadSlug,
+      prompt: currentMessage,
+      historyLength: chatHistory.length,
+    });
     setChatHistory(prevChatHistory);
     setMessageEmit("");
     setLoadingResponse(true);
@@ -245,6 +256,12 @@ export default function ChatContainer({
       ];
     }
 
+    markPendingChatStream({
+      workspaceSlug: workspace.slug,
+      threadSlug: activeThreadSlug,
+      prompt: text,
+      historyLength: history.length > 0 ? history.length : chatHistory.length,
+    });
     setChatHistory(prevChatHistory);
     setMessageEmit("");
     setLoadingResponse(true);
@@ -290,6 +307,65 @@ export default function ChatContainer({
       }, 100);
     }
   }, [workspace?.slug]);
+
+  useEffect(() => {
+    if (!workspace?.slug) return;
+    const pending = getPendingChatStream(workspace.slug, activeThreadSlug);
+    if (!pending) return;
+
+    let cancelled = false;
+    let timer = null;
+    const pendingHistoryLength = Number(
+      pending.historyLength ?? knownHistory.length
+    );
+
+    setChatHistory((current) => {
+      if (current.some((msg) => msg?.wiciBackgroundPending)) return current;
+      return [
+        ...current,
+        {
+          content: pending.prompt || "",
+          role: "user",
+          wiciBackgroundPending: true,
+        },
+        {
+          content: "",
+          role: "assistant",
+          pending: true,
+          animate: true,
+          wiciBackgroundPending: true,
+        },
+      ];
+    });
+
+    async function pollPendingHistory() {
+      const latest = activeThreadSlug
+        ? await Workspace.threads.chatHistory(workspace.slug, activeThreadSlug)
+        : await Workspace.chatHistory(workspace.slug);
+      if (cancelled) return;
+
+      const stillPending = getPendingChatStream(
+        workspace.slug,
+        activeThreadSlug
+      );
+      if (!stillPending || latest.length > pendingHistoryLength) {
+        clearPendingChatStream({
+          workspaceSlug: workspace.slug,
+          threadSlug: activeThreadSlug,
+        });
+        setChatHistory(latest);
+        return;
+      }
+
+      timer = setTimeout(pollPendingHistory, 2_000);
+    }
+
+    timer = setTimeout(pollPendingHistory, 1_000);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [workspace?.slug, activeThreadSlug, knownHistory.length]);
 
   useEffect(() => {
     async function fetchReply() {

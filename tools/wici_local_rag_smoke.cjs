@@ -212,6 +212,20 @@ async function main() {
       mustMatch: [/Adaptive-RAG/i, /复杂度|complexity/i],
     },
     {
+      name: "adaptive-followup-categories",
+      title: "2403.14403v2.pdf",
+      message:
+        "那篇 Adaptive-RAG 论文里，作者把 query complexity 分成了哪几类？系统分别会选择什么策略？",
+      mustMatch: [/A|简单|straightforward|non-retrieval/i, /B|单步|single-step/i, /C|多步|multi-step/i],
+    },
+    {
+      name: "adaptive-followup-figure",
+      title: "2403.14403v2.pdf",
+      message:
+        "那篇 Adaptive-RAG 论文的 Figure 1 画的是什么？横轴和纵轴分别是什么？它想说明 Adaptive-RAG 在性能和耗时上处于什么位置？",
+      mustMatch: [/Time per Query|耗时/i, /Performance|F1|性能/i],
+    },
+    {
       name: "numeric-miss",
       noSources: true,
       message:

@@ -8,6 +8,7 @@ const {
   formatSourceForContext,
   formatSourcesForContext,
   stripHiddenReasoning,
+  retryEmptyStreamCompletion,
   sourceIdentifier,
   recentChatHistory,
   grepAllSlashCommands,
@@ -980,7 +981,31 @@ async function streamChat({
       user: user,
     });
     completeText = await LLMConnector.handleStream(response, stream, { uuid });
+    completeText = stripHiddenReasoning(completeText);
     metrics = stream.metrics;
+  }
+
+  if (!completeText?.length) {
+    const retry = await retryEmptyStreamCompletion({
+      LLMConnector,
+      messages,
+      temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
+      user,
+    });
+    completeText = retry.textResponse;
+    metrics = retry.metrics || metrics;
+    if (completeText?.length) {
+      writeResponseChunk(response, {
+        uuid,
+        sources: responseSources,
+        type: "textResponseChunk",
+        textResponse: completeText,
+        close: true,
+        error: false,
+        metrics,
+        wiciLocalIndex: localIndex,
+      });
+    }
   }
 
   if (completeText?.length > 0) {

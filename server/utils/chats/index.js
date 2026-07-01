@@ -180,7 +180,15 @@ function localAnchorTerms(query = "") {
     terms.add(match[0]);
   for (const match of normalized.matchAll(/[\u4e00-\u9fff]{2,}/g))
     terms.add(match[0]);
+  const add = (...values) => values.forEach((value) => terms.add(value));
+  if (/(问题|query).*(难度|复杂度|complexity)/i.test(normalized))
+    add("adaptive-rag", "query complexity", "classifier");
+  if (/(按|根据).*(难度|复杂度).*(策略|选择|选)/i.test(normalized))
+    add("adaptive-rag", "single-step", "multi-step");
+  if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
+    add("adaptive-rag", "query complexity");
   const generic = new Set([
+    "rag",
     "the",
     "and",
     "with",
@@ -462,11 +470,43 @@ function stripHiddenReasoning(text = "") {
     .trim();
 }
 
+async function retryEmptyStreamCompletion({
+  LLMConnector,
+  messages,
+  temperature,
+  user = null,
+} = {}) {
+  if (!LLMConnector || typeof LLMConnector.getChatCompletion !== "function")
+    return { textResponse: "", metrics: {} };
+
+  try {
+    console.warn(
+      "[WICI Local RAG] Streaming response ended empty; retrying once with non-streamed completion."
+    );
+    const { textResponse: rawTextResponse, metrics = {} } =
+      await LLMConnector.getChatCompletion(messages, {
+        temperature,
+        user,
+      });
+    return {
+      textResponse: stripHiddenReasoning(rawTextResponse),
+      metrics,
+    };
+  } catch (error) {
+    console.warn(
+      "[WICI Local RAG] Non-streamed retry after empty stream failed.",
+      error?.message || error
+    );
+    return { textResponse: "", metrics: {} };
+  }
+}
+
 module.exports = {
   sourceIdentifier,
   formatSourceForContext,
   formatSourcesForContext,
   stripHiddenReasoning,
+  retryEmptyStreamCompletion,
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
   hasLocalMatchedDocuments,

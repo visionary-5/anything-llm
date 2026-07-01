@@ -18,6 +18,7 @@ Scope: improve the local-folder RAG path so a user can ask for local documents w
 - Local candidate matching now requires high-signal terms such as `adaptive-rag` when present, so generic words like `complexity` or `figure` do not pull in unrelated company PDFs or other papers.
 - The frontend records pending chat streams in localStorage. If the user switches threads and returns before generation finishes, the chat shows a pending assistant reply and polls history until the saved answer appears.
 - Table-oriented follow-ups now recognize `Table N`, `标签/比例/分类器预测`, and `Time/Query`. Exact lexical evidence can attach a structured table hint when PDF extraction flattens rows such as `0.358.60`, so the model preserves all requested rows and columns.
+- Fuzzy Chinese descriptions such as `按问题难度选策略` now route to Adaptive-RAG via query-complexity expansions instead of relying on generic `rag` history matches. If an Ollama stream ends with no final visible text, the server retries once with a non-streamed completion before returning an error.
 
 ## Smoke Results
 
@@ -29,6 +30,7 @@ Server: `http://localhost:3101/api`
 | --- | --- |
 | `2403 Adaptive-RAG` exact hint | Hit `2403.14403v2.pdf`; answered the core idea. |
 | Fuzzy `Adaptive-RAG` without path/number | Hit `2403.14403v2.pdf`; answered the core idea. |
+| Fuzzy Chinese `按问题难度选策略` | Hit only `2403.14403v2.pdf`; answered Adaptive-RAG's query-complexity strategy selection. |
 | Wrong numeric hint `9999 Adaptive-RAG` | Returned a local miss; did not use unrelated sources. |
 | `2410 VisRAG` numeric/table question | Hit `2410.10594v2.pdf`; answered `256KB`, `4.5KB`, and `5% error margin`. |
 | Follow-up categories question | `那篇 Adaptive-RAG...query complexity...` now hits `2403.14403v2.pdf` and returns A/B/C with no retrieval / single-step / multi-step strategies. |

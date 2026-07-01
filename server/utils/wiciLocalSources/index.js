@@ -266,8 +266,23 @@ function queryTerms(query = "") {
   );
 }
 
+function expandedQueryTerms(query = "") {
+  const normalized = normalizeText(query);
+  const terms = new Set(queryTerms(query));
+  const add = (...values) => values.forEach((value) => terms.add(value));
+
+  if (/(问题|query).*(难度|复杂度|complexity)/i.test(normalized))
+    add("adaptive-rag", "query complexity", "complexity", "classifier");
+  if (/(按|根据).*(难度|复杂度).*(策略|选择|选)/i.test(normalized))
+    add("adaptive-rag", "strategy", "single-step", "multi-step");
+  if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
+    add("adaptive-rag", "strategy", "query complexity");
+
+  return Array.from(terms);
+}
+
 function numericQueryTerms(query = "") {
-  return queryTerms(query).filter((term) => /^\d{3,}/.test(term));
+  return expandedQueryTerms(query).filter((term) => /^\d{3,}/.test(term));
 }
 
 function highSignalQueryTerms(terms = []) {
@@ -449,7 +464,7 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
 }
 
 function stateStrongMatchesForQuery(state, query = "") {
-  const terms = queryTerms(query).filter(
+  const terms = expandedQueryTerms(query).filter(
     (term) => /^\d{3,}/.test(term) || normalizeText(term).length >= 5
   );
   if (terms.length === 0) return [];

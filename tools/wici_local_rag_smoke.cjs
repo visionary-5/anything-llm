@@ -212,6 +212,13 @@ async function main() {
       mustMatch: [/Adaptive-RAG/i, /复杂度|complexity/i],
     },
     {
+      name: "adaptive-fuzzy-cn-hint",
+      title: "2403.14403v2.pdf",
+      message:
+        "我本地那篇讲“按问题难度选策略”的 RAG 论文，核心想法是什么？",
+      mustMatch: [/Adaptive-RAG/i, /复杂度|complexity|问题难度/i],
+    },
+    {
       name: "adaptive-followup-categories",
       title: "2403.14403v2.pdf",
       message:

@@ -181,15 +181,31 @@ function localAnchorTerms(query = "") {
   for (const match of normalized.matchAll(/[\u4e00-\u9fff]{2,}/g))
     terms.add(match[0]);
   const add = (...values) => values.forEach((value) => terms.add(value));
+  const negatesVisual =
+    /(别|不要|不是|别沿用|别用|排除|not|don't|do not).{0,20}(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(
+      normalized
+    );
+  const negatesSelf =
+    /(别|不要|不是|别沿用|别用|排除|not|don't|do not).{0,20}(self|self-?rag|自我|反思|reflection)/i.test(
+      normalized
+    );
   if (/(问题|query).*(难度|复杂度|complexity)/i.test(normalized))
     add("adaptive-rag", "query complexity", "classifier");
   if (/(按|根据).*(难度|复杂度).*(策略|选择|选)/i.test(normalized))
     add("adaptive-rag", "single-step", "multi-step");
   if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
     add("adaptive-rag", "query complexity");
-  if (/(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized))
+  if (
+    !negatesVisual &&
+    /(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized)
+  )
     add("visrag", "vision-based", "multi-modality", "document image", "vlm");
-  if (/(self-?rag|自我|反思|reflection|批判|critique)/i.test(normalized))
+  if (
+    !negatesSelf &&
+    /(self-?rag|\bself\b.*(rag|开头|论文|paper)|自我|反思|reflection|批判|critique)/i.test(
+      normalized
+    )
+  )
     add("self-rag", "reflection tokens", "isrel", "issup", "isuse");
   const generic = new Set([
     "rag",
@@ -225,6 +241,28 @@ function localDocumentFollowupQuery(query = "") {
   return /(那篇|这篇|该论文|该文|上面|刚才|前面|上一轮|继续|figure\s*\d+|fig\.\s*\d+|图\s*\d+|表\s*\d+|that paper|this paper|the paper|same paper|it\b)/i.test(
     query
   );
+}
+
+function localDocumentResetQuery(query = "") {
+  return /(新的?论文|新的?文档|新检索|重新检索|重新搜索|全局检索|全盘检索|换一篇|换一个|另一篇|另一个|不是这篇|不是这个|new paper|new document|new search|search again|different paper|another paper)/i.test(
+    query
+  );
+}
+
+function previousUserPrompt(rawHistory = []) {
+  const previous = rawHistory
+    .slice()
+    .reverse()
+    .find((chat) => typeof chat?.prompt === "string" && chat.prompt.trim());
+  return previous?.prompt || "";
+}
+
+function localSearchQueryForMessage(query = "", rawHistory = []) {
+  if (!localDocumentResetQuery(query)) return query;
+
+  const previousPrompt = previousUserPrompt(rawHistory);
+  if (!previousPrompt) return query;
+  return `${previousPrompt}\n${query}`;
 }
 
 function responseLooksLikeLocalMiss(response = {}) {
@@ -327,6 +365,7 @@ function localHistoryMatchesForQuery(rawHistory = [], query = "") {
 
 function localIndexWithHistoryAnchors(localIndex = {}, rawHistory = [], query = "") {
   if (localIndex?.strictLocalMiss) return localIndex;
+  if (localDocumentResetQuery(query)) return localIndex;
   const historyMatches = localHistoryMatchesForQuery(rawHistory, query);
   if (historyMatches.length === 0) return localIndex;
 
@@ -372,6 +411,13 @@ function cleanMetadataValue(value) {
   return String(value).slice(0, 1_000);
 }
 
+function pageFromSource(source = {}) {
+  if (source.page || source.pageNumber) return source.page || source.pageNumber;
+  const body = contextBodyFromSource(source);
+  const match = String(body || "").match(/\[WICI_PAGE\s+page=([^\]]+)\]/i);
+  return match?.[1] || null;
+}
+
 function sourceMetadataForContext(source = {}, index = null) {
   const metadata = {
     context_id: index === null ? null : index,
@@ -382,7 +428,7 @@ function sourceMetadataForContext(source = {}, index = null) {
     document_type: source.documentType || source.type || null,
     author: source.docAuthor || null,
     published: source.published || null,
-    page: source.page || source.pageNumber || null,
+    page: pageFromSource(source),
     score: source.score ?? null,
     evidence_type: source.wiciEvidenceType || null,
     evidence_start: source.wiciEvidenceStart ?? null,
@@ -404,13 +450,24 @@ function formatSourceForContext(source = {}, index = null) {
   const body = contextBodyFromSource(source);
   if (!body) return "";
   const metadata = sourceMetadataForContext(source, index);
-  if (Object.keys(metadata).length === 0) return body;
+  const contextId =
+    index === null || index === undefined ? "" : ` id="${String(index)}"`;
+  if (Object.keys(metadata).length === 0)
+    return `<wici_context${contextId}>
+<document_body>
+${body}
+</document_body>
+</wici_context>`;
 
-  return `<document_metadata>
+  return `<wici_context${contextId}>
+<document_metadata>
 ${JSON.stringify(metadata, null, 2)}
 </document_metadata>
 
-${body}`;
+<document_body>
+${body}
+</document_body>
+</wici_context>`;
 }
 
 function formatSourcesForContext(sources = [], startIndex = 0) {
@@ -466,6 +523,45 @@ function sourcesForClient(sources = []) {
   return responseSources;
 }
 
+function documentKeyForSource(source = {}) {
+  return normalizeClientSourceKey(
+    source.sourcePath ||
+      source.chunkSource ||
+      source.url ||
+      source.location ||
+      source.title ||
+      source.filename ||
+      source.name ||
+      ""
+  );
+}
+
+function diversifySourcesByDocument(
+  sources = [],
+  {
+    maxPerDocument = Number(process.env.WICI_LOCAL_MAX_CHUNKS_PER_DOC || 2),
+    maxDocuments = Number(process.env.WICI_LOCAL_MAX_CONTEXT_DOCS || 8),
+  } = {}
+) {
+  if (!Array.isArray(sources) || sources.length === 0) return [];
+  const perDocument = new Map();
+  const selected = [];
+  const seenDocuments = new Set();
+
+  for (const source of sources) {
+    const key = documentKeyForSource(source) || uuidv4();
+    const count = perDocument.get(key) || 0;
+    if (count >= maxPerDocument) continue;
+    if (!seenDocuments.has(key) && seenDocuments.size >= maxDocuments) continue;
+
+    perDocument.set(key, count + 1);
+    seenDocuments.add(key);
+    selected.push(source);
+  }
+
+  return selected;
+}
+
 function stripHiddenReasoning(text = "") {
   if (!text) return text;
   return String(text)
@@ -511,6 +607,9 @@ module.exports = {
   formatSourcesForContext,
   stripHiddenReasoning,
   retryEmptyStreamCompletion,
+  localSearchQueryForMessage,
+  localDocumentResetQuery,
+  diversifySourcesByDocument,
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
   hasLocalMatchedDocuments,

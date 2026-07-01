@@ -60,6 +60,10 @@ function searchTerms(query = "") {
   const terms = new Set();
   for (const match of normalized.matchAll(/[a-z0-9][a-z0-9._-]{1,}/g))
     terms.add(match[0]);
+  if (/\bself\b.*(rag|开头|论文|paper)/i.test(normalized)) {
+    terms.add("self-rag");
+    terms.add("reflection tokens");
+  }
   for (const match of normalized.matchAll(/[\u4e00-\u9fff]{2,}/g)) {
     const token = match[0];
     terms.add(token);

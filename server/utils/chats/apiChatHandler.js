@@ -9,6 +9,8 @@ const {
   formatSourcesForContext,
   stripHiddenReasoning,
   retryEmptyStreamCompletion,
+  localSearchQueryForMessage,
+  diversifySourcesByDocument,
   sourceIdentifier,
   recentChatHistory,
   grepAllSlashCommands,
@@ -245,12 +247,31 @@ async function chatSync({
 
   const VectorDb = getVectorDbClass();
   const messageLimit = workspace?.openAiHistory || 20;
+  const historyContextForLocal = await recentChatHistory({
+    user,
+    workspace,
+    thread,
+    messageLimit,
+    apiSessionId: sessionId,
+  });
+  const localSearchQuery = localSearchQueryForMessage(
+    message,
+    historyContextForLocal.rawHistory
+  );
   const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
     workspace,
     userId: user?.id || null,
-    query: message,
+    query: localSearchQuery,
     chatMode,
   });
+  const localRagMetrics = {
+    onDemandMs: onDemandLocalIndex?.elapsedMs ?? null,
+    localSearchQueryChanged: localSearchQuery !== message,
+    vectorSearchMs: null,
+    rerankMs: null,
+    lexicalEvidenceMs: null,
+    contextSources: 0,
+  };
   if (onDemandLocalIndex?.strictLocalMiss) {
     const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
     await WorkspaceChats.new({
@@ -318,13 +339,7 @@ async function chatSync({
   let contextTexts = [];
   let sources = [];
   let pinnedDocIdentifiers = [];
-  const { rawHistory, chatHistory } = await recentChatHistory({
-    user,
-    workspace,
-    thread,
-    messageLimit,
-    apiSessionId: sessionId,
-  });
+  const { rawHistory, chatHistory } = historyContextForLocal;
   const localIndex = localIndexWithHistoryAnchors(
     onDemandLocalIndex,
     rawHistory,
@@ -375,6 +390,7 @@ async function chatSync({
     }
   });
 
+  const vectorSearchStarted = Date.now();
   const vectorSearchResults =
     embeddingsCount !== 0
       ? await VectorDb.performSimilaritySearch({
@@ -391,6 +407,8 @@ async function chatSync({
           sources: [],
           message: null,
         };
+  localRagMetrics.vectorSearchMs = Date.now() - vectorSearchStarted;
+  localRagMetrics.rerankMs = vectorSearchResults.rerankLatencyMs ?? null;
 
   // Failed similarity search if it was run at all and failed.
   if (!!vectorSearchResults.message) {
@@ -412,20 +430,23 @@ async function chatSync({
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const diversifiedSources = diversifySourcesByDocument(filledSources.sources);
   const constrainedSources = constrainSourcesToLocalMatches(
-    filledSources.sources,
+    diversifiedSources,
     localIndex
   );
   const evidenceSources = evidenceSourcesForLocalMatches(
-    filledSources.sources,
+    diversifiedSources,
     localIndex
   );
+  const lexicalEvidenceStarted = Date.now();
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: message,
     sources: evidenceSources,
     workspaceId: workspace?.id,
     maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
   });
+  localRagMetrics.lexicalEvidenceMs = Date.now() - lexicalEvidenceStarted;
 
   // Why does contextTexts get all the info, but sources only get current search?
   // This is to give the ability of the LLM to "comprehend" a contextual response without
@@ -446,6 +467,7 @@ async function chatSync({
   ];
   sources = [...sources, ...lexicalEvidence.sources, ...constrainedSources];
   const responseSources = sourcesForClient(sources);
+  localRagMetrics.contextSources = responseSources.length;
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -505,6 +527,7 @@ async function chatSync({
       temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
       user: user,
     });
+  const metrics = { ...performanceMetrics, wiciLocalRag: localRagMetrics };
   const textResponse = stripHiddenReasoning(rawTextResponse);
 
   if (!textResponse) {
@@ -515,7 +538,7 @@ async function chatSync({
       sources: [],
       close: true,
       error: "No text completion could be completed with this input.",
-      metrics: performanceMetrics,
+      metrics,
     };
   }
 
@@ -527,7 +550,7 @@ async function chatSync({
       sources: responseSources,
       attachments,
       type: chatMode,
-      metrics: performanceMetrics,
+      metrics,
     },
     threadId: thread?.id || null,
     apiSessionId: sessionId,
@@ -542,7 +565,7 @@ async function chatSync({
     chatId: chat.id,
     textResponse,
     sources: responseSources,
-    metrics: performanceMetrics,
+    metrics,
     wiciLocalIndex: localIndex,
   };
 }
@@ -685,12 +708,31 @@ async function streamChat({
 
   const VectorDb = getVectorDbClass();
   const messageLimit = workspace?.openAiHistory || 20;
+  const historyContextForLocal = await recentChatHistory({
+    user,
+    workspace,
+    thread,
+    messageLimit,
+    apiSessionId: sessionId,
+  });
+  const localSearchQuery = localSearchQueryForMessage(
+    message,
+    historyContextForLocal.rawHistory
+  );
   const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
     workspace,
     userId: user?.id || null,
-    query: message,
+    query: localSearchQuery,
     chatMode,
   });
+  const localRagMetrics = {
+    onDemandMs: onDemandLocalIndex?.elapsedMs ?? null,
+    localSearchQueryChanged: localSearchQuery !== message,
+    vectorSearchMs: null,
+    rerankMs: null,
+    lexicalEvidenceMs: null,
+    contextSources: 0,
+  };
   if (onDemandLocalIndex?.strictLocalMiss) {
     const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
     writeResponseChunk(response, {
@@ -764,13 +806,7 @@ async function streamChat({
   let contextTexts = [];
   let sources = [];
   let pinnedDocIdentifiers = [];
-  const { rawHistory, chatHistory } = await recentChatHistory({
-    user,
-    workspace,
-    thread,
-    messageLimit,
-    apiSessionId: sessionId,
-  });
+  const { rawHistory, chatHistory } = historyContextForLocal;
   const localIndex = localIndexWithHistoryAnchors(
     onDemandLocalIndex,
     rawHistory,
@@ -827,6 +863,7 @@ async function streamChat({
     }
   });
 
+  const vectorSearchStarted = Date.now();
   const vectorSearchResults =
     embeddingsCount !== 0
       ? await VectorDb.performSimilaritySearch({
@@ -843,6 +880,8 @@ async function streamChat({
           sources: [],
           message: null,
         };
+  localRagMetrics.vectorSearchMs = Date.now() - vectorSearchStarted;
+  localRagMetrics.rerankMs = vectorSearchResults.rerankLatencyMs ?? null;
 
   // Failed similarity search if it was run at all and failed.
   if (!!vectorSearchResults.message) {
@@ -865,20 +904,23 @@ async function streamChat({
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const diversifiedSources = diversifySourcesByDocument(filledSources.sources);
   const constrainedSources = constrainSourcesToLocalMatches(
-    filledSources.sources,
+    diversifiedSources,
     localIndex
   );
   const evidenceSources = evidenceSourcesForLocalMatches(
-    filledSources.sources,
+    diversifiedSources,
     localIndex
   );
+  const lexicalEvidenceStarted = Date.now();
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: message,
     sources: evidenceSources,
     workspaceId: workspace?.id,
     maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
   });
+  localRagMetrics.lexicalEvidenceMs = Date.now() - lexicalEvidenceStarted;
 
   // Why does contextTexts get all the info, but sources only get current search?
   // This is to give the ability of the LLM to "comprehend" a contextual response without
@@ -899,6 +941,7 @@ async function streamChat({
   ];
   sources = [...sources, ...lexicalEvidence.sources, ...constrainedSources];
   const responseSources = sourcesForClient(sources);
+  localRagMetrics.contextSources = responseSources.length;
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -962,9 +1005,9 @@ async function streamChat({
       await LLMConnector.getChatCompletion(messages, {
         temperature: workspace?.openAiTemp ?? LLMConnector.defaultTemp,
         user: user,
-      });
+    });
     completeText = stripHiddenReasoning(rawTextResponse);
-    metrics = performanceMetrics;
+    metrics = { ...performanceMetrics, wiciLocalRag: localRagMetrics };
     writeResponseChunk(response, {
       uuid,
       sources: responseSources,
@@ -982,7 +1025,7 @@ async function streamChat({
     });
     completeText = await LLMConnector.handleStream(response, stream, { uuid });
     completeText = stripHiddenReasoning(completeText);
-    metrics = stream.metrics;
+    metrics = { ...(stream.metrics || {}), wiciLocalRag: localRagMetrics };
   }
 
   if (!completeText?.length) {
@@ -993,7 +1036,7 @@ async function streamChat({
       user,
     });
     completeText = retry.textResponse;
-    metrics = retry.metrics || metrics;
+    metrics = { ...(retry.metrics || metrics), wiciLocalRag: localRagMetrics };
     if (completeText?.length) {
       writeResponseChunk(response, {
         uuid,

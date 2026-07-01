@@ -270,6 +270,14 @@ function expandedQueryTerms(query = "") {
   const normalized = normalizeText(query);
   const terms = new Set(queryTerms(query));
   const add = (...values) => values.forEach((value) => terms.add(value));
+  const negatesVisual =
+    /(别|不要|不是|别沿用|别用|排除|not|don't|do not).{0,20}(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(
+      normalized
+    );
+  const negatesSelf =
+    /(别|不要|不是|别沿用|别用|排除|not|don't|do not).{0,20}(self|self-?rag|自我|反思|reflection)/i.test(
+      normalized
+    );
 
   if (/(问题|query).*(难度|复杂度|complexity)/i.test(normalized))
     add("adaptive-rag", "query complexity", "complexity", "classifier");
@@ -277,7 +285,10 @@ function expandedQueryTerms(query = "") {
     add("adaptive-rag", "strategy", "single-step", "multi-step");
   if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
     add("adaptive-rag", "strategy", "query complexity");
-  if (/(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized))
+  if (
+    !negatesVisual &&
+    /(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized)
+  )
     add(
       "visrag",
       "vision-based",
@@ -286,7 +297,12 @@ function expandedQueryTerms(query = "") {
       "vlm",
       "textrag"
     );
-  if (/(self-?rag|自我|反思|reflection|批判|critique)/i.test(normalized))
+  if (
+    !negatesSelf &&
+    /(self-?rag|\bself\b.*(rag|开头|论文|paper)|自我|反思|reflection|批判|critique)/i.test(
+      normalized
+    )
+  )
     add("self-rag", "reflection tokens", "isrel", "issup", "isuse");
 
   return Array.from(terms);
@@ -345,7 +361,7 @@ function shouldRunOnDemandForQuery(query = "", chatMode = "automatic") {
   if (!onDemandIndexingEnabled()) return false;
   if (chatMode === "chat") return false;
   const normalized = normalizeText(query);
-  return /(local|file|files|pdf|paper|document|download|find|search|rag|visrag|self-?rag|adaptive-rag|reflection|本地|文件|文档|论文|下载|找|搜|照片|图片|截图|视觉|自我|反思|检索)/i.test(
+  return /(local|file|files|pdf|paper|document|download|find|search|rag|visrag|self|self-?rag|adaptive-rag|reflection|本地|文件|文档|论文|下载|找|搜|照片|图片|截图|视觉|自我|反思|检索|新检索|重新检索|全局检索|全盘检索|换一篇|另一篇|另一个|不是这篇)/i.test(
     normalized
   );
 }
@@ -847,13 +863,23 @@ async function processFingerprint({
   state,
   userId,
 }) {
+  const started = Date.now();
+  const timings = {
+    copyMs: 0,
+    collectorMs: 0,
+    removePreviousMs: 0,
+    embedMs: 0,
+    totalMs: 0,
+  };
   fs.mkdirSync(hotdirPath, { recursive: true });
   const uploadName = uploadFilenameFor(fingerprint);
   const destination = path.resolve(hotdirPath, uploadName);
   if (!isWithin(hotdirPath, destination))
     throw new Error("Invalid hotdir path.");
 
+  const copyStarted = Date.now();
   fs.copyFileSync(fingerprint.path, destination);
+  timings.copyMs = Date.now() - copyStarted;
 
   const metadata = {
     title: path.basename(fingerprint.path),
@@ -864,25 +890,31 @@ async function processFingerprint({
     sourcePath: fingerprint.path,
     wiciLocalSource: true,
   };
+  const collectorStarted = Date.now();
   const result = await collector.processDocument(uploadName, metadata);
+  timings.collectorMs = Date.now() - collectorStarted;
   if (!result?.success || !result.documents?.length) {
     throw new Error(result?.reason || "Collector failed to process document.");
   }
 
+  const removeStarted = Date.now();
   await removePreviousWorkspaceDocs(
     workspace,
     state.files[fingerprint.key],
     userId
   );
+  timings.removePreviousMs = Date.now() - removeStarted;
 
   const locations = result.documents
     .map((document) => document.location)
     .filter(Boolean);
+  const embedStarted = Date.now();
   const { failedToEmbed = [], errors = [] } = await Document.addDocuments(
     workspace,
     locations,
     userId
   );
+  timings.embedMs = Date.now() - embedStarted;
   if (failedToEmbed.length > 0) {
     throw new Error(
       errors?.[0] || `Failed to embed ${failedToEmbed.join(", ")}`
@@ -896,7 +928,8 @@ async function processFingerprint({
     documents: result.documents,
     indexedAt: new Date().toISOString(),
   };
-  return result.documents;
+  timings.totalMs = Date.now() - started;
+  return { documents: result.documents, timings };
 }
 
 async function runIndexJob(job, { workspace, userId, options }) {
@@ -913,6 +946,8 @@ async function runIndexJob(job, { workspace, userId, options }) {
     attempted: 0,
     ok: 0,
     failed: 0,
+    scanElapsedMs: 0,
+    indexElapsedMs: 0,
     elapsedMs: 0,
   };
 
@@ -920,7 +955,10 @@ async function runIndexJob(job, { workspace, userId, options }) {
     throw new Error("Document processing API is not online.");
   }
 
+  const scanStarted = Date.now();
   const scan = scanLocalFiles(options);
+  job.summary.scanElapsedMs = Date.now() - scanStarted;
+  const indexStarted = Date.now();
   const allCandidates = candidatesFor(scan.files, state, parsed.force);
   const candidates =
     parsed.limit === null
@@ -946,16 +984,22 @@ async function runIndexJob(job, { workspace, userId, options }) {
       ok: false,
       error: null,
       documents: [],
+      timings: null,
+      elapsedMs: 0,
     };
 
     try {
-      row.documents = await processFingerprint({
+      const rowStarted = Date.now();
+      const result = await processFingerprint({
         collector,
         workspace,
         fingerprint,
         state,
         userId,
       });
+      row.documents = result.documents;
+      row.timings = result.timings;
+      row.elapsedMs = Date.now() - rowStarted;
       row.ok = true;
       job.summary.ok += 1;
       writeState(workspace.slug, state);
@@ -965,12 +1009,14 @@ async function runIndexJob(job, { workspace, userId, options }) {
     }
 
     job.rows.push(row);
+    job.summary.indexElapsedMs = Date.now() - indexStarted;
     job.summary.elapsedMs = Date.now() - started;
   }
 
   job.current = null;
   job.status = "complete";
   job.finishedAt = new Date().toISOString();
+  job.summary.indexElapsedMs = Date.now() - indexStarted;
   job.summary.elapsedMs = Date.now() - started;
 }
 
@@ -1021,7 +1067,9 @@ async function maybeIndexLocalSourcesForQuery({
     };
   }
 
+  const scanStarted = Date.now();
   const scan = scanLocalFiles(options);
+  const scanElapsedMs = Date.now() - scanStarted;
   const ranked = rankedCandidatesForQuery({
     files: scan.files,
     state,
@@ -1050,6 +1098,7 @@ async function maybeIndexLocalSourcesForQuery({
         seen: scan.files.length,
         truncated: scan.truncated,
         roots: scan.roots,
+        elapsedMs: scanElapsedMs,
       },
     };
   }
@@ -1075,15 +1124,21 @@ async function maybeIndexLocalSourcesForQuery({
       ok: false,
       error: null,
       documents: [],
+      timings: null,
+      elapsedMs: 0,
     };
     try {
-      row.documents = await processFingerprint({
+      const rowStarted = Date.now();
+      const result = await processFingerprint({
         collector,
         workspace,
         fingerprint,
         state,
         userId,
       });
+      row.documents = result.documents;
+      row.timings = result.timings;
+      row.elapsedMs = Date.now() - rowStarted;
       row.ok = true;
       indexed += 1;
       writeState(workspace.slug, state);
@@ -1103,6 +1158,7 @@ async function maybeIndexLocalSourcesForQuery({
       seen: scan.files.length,
       truncated: scan.truncated,
       roots: scan.roots,
+      elapsedMs: scanElapsedMs,
     },
     rows,
   };

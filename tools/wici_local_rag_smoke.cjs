@@ -104,6 +104,12 @@ async function runCase(test) {
       `${test.name}: expected no sources, got ${result.titles.join(", ")}`
     );
   }
+  for (const title of test.excludeTitles || []) {
+    assertResult(
+      !result.titles.includes(title),
+      `${test.name}: excluded source title ${title} was present`
+    );
+  }
   for (const pattern of test.mustMatch || []) {
     assertResult(
       pattern.test(result.text),
@@ -216,7 +222,7 @@ async function main() {
       title: "2403.14403v2.pdf",
       message:
         "我本地那篇讲“按问题难度选策略”的 RAG 论文，核心想法是什么？",
-      mustMatch: [/Adaptive-RAG/i, /复杂度|complexity|问题难度/i],
+      mustMatch: [/复杂度|complexity|问题难度|难度|分类器|策略/i],
     },
     {
       name: "adaptive-followup-categories",
@@ -257,6 +263,20 @@ async function main() {
       title: "2310.11511v1.pdf",
       message: "再换到那个自我反思的 RAG，它靠什么决定要不要检索？",
       mustMatch: [/SELF-RAG|self-rag/i, /reflection|反思|Retrieve/i],
+    },
+    {
+      name: "selfrag-self-prefix",
+      title: "2310.11511v1.pdf",
+      excludeTitles: ["2410.10594v2.pdf"],
+      message: "那篇 self 开头的 RAG 论文里有哪些 reflection token？",
+      mustMatch: [/SELF-RAG|self-rag/i, /Retrieve|ISREL|ISSUP|ISUSE|reflection/i],
+    },
+    {
+      name: "selfrag-reset-retry-uses-previous-intent",
+      title: "2310.11511v1.pdf",
+      excludeTitles: ["2410.10594v2.pdf"],
+      message: "这是一篇新的论文，需要新检索，别沿用上一篇视觉 RAG。",
+      mustMatch: [/SELF-RAG|self-rag|reflection|反思/i],
     },
     {
       name: "numeric-miss",

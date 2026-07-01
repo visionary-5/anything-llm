@@ -33,13 +33,14 @@ async function asPdf({
   }
 
   for (const doc of docs) {
+    const pageNumber = doc.metadata?.loc?.pageNumber || "unknown";
     console.log(
-      `-- Parsing content from pg ${
-        doc.metadata?.loc?.pageNumber || "unknown"
-      } --`
+      `-- Parsing content from pg ${pageNumber} --`
     );
     if (!doc.pageContent || !doc.pageContent.length) continue;
-    pageContent.push(doc.pageContent);
+    pageContent.push(
+      `\n\n[WICI_PAGE page=${pageNumber}]\n${doc.pageContent.trim()}`
+    );
   }
 
   if (!pageContent.length) {
@@ -52,7 +53,7 @@ async function asPdf({
     };
   }
 
-  const content = pageContent.join("");
+  const content = pageContent.join("\n\n");
   const data = {
     id: v4(),
     url: "file://" + fullFilePath,

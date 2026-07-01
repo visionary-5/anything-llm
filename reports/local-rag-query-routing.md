@@ -19,6 +19,8 @@ Scope: improve the local-folder RAG path so a user can ask for local documents w
 - The frontend records pending chat streams in localStorage. If the user switches threads and returns before generation finishes, the chat shows a pending assistant reply and polls history until the saved answer appears.
 - Table-oriented follow-ups now recognize `Table N`, `标签/比例/分类器预测`, and `Time/Query`. Exact lexical evidence can attach a structured table hint when PDF extraction flattens rows such as `0.358.60`, so the model preserves all requested rows and columns.
 - Fuzzy Chinese descriptions such as `按问题难度选策略` now route to Adaptive-RAG via query-complexity expansions instead of relying on generic `rag` history matches. If an Ollama stream ends with no final visible text, the server retries once with a non-streamed completion before returning an error.
+- Local RAG now has a first-pass document identity router for Adaptive-RAG, VisRAG, and SELF-RAG style queries. High-signal terms in the current user message can override a previous conversation anchor, so a thread can switch from one paper to another without manually naming the file path.
+- Dominant document matches are pruned before chunk retrieval. This reduces citation pollution where many papers mention `SELF-RAG` or `VisRAG`, but only one local document is the actual target.
 
 ## Smoke Results
 
@@ -36,8 +38,19 @@ Server: `http://localhost:3101/api`
 | Follow-up categories question | `那篇 Adaptive-RAG...query complexity...` now hits `2403.14403v2.pdf` and returns A/B/C with no retrieval / single-step / multi-step strategies. |
 | Follow-up Figure 1 question | `那篇 Adaptive-RAG...Figure 1...` now hits `2403.14403v2.pdf` and returns `Time per Query` / `Performance (F1)`. |
 | Follow-up Table 3 question | `Table 3...标签...比例...Time/Query...` hits `2403.14403v2.pdf` and returns No(A) `8.60%` / `0.35s`, One(B) `53.33%` / `3.08s`, Multi(C) `38.07%` / `27.18s`. |
+| Cross-paper fuzzy switch to VisRAG | `视觉 RAG 那篇说端到端提升大概多少？` now hits only `2410.10594v2.pdf` and returns the `20-40%` end-to-end improvement. |
+| Cross-paper fuzzy switch to SELF-RAG | `再换到那个自我反思的 RAG...要不要检索？` now hits only `2310.11511v1.pdf` and answers from reflection-token evidence. |
 | SSE payload regression | Adaptive-RAG query dropped from about 401MB to 48-57KB after source trimming, one-time source streaming, and suppressing hidden reasoning tokens. |
 | Disconnect simulation | A request aborted after 1s still completed and persisted in `workspace_chats`. |
+
+## Design Boundary
+
+This is a routing-layer improvement, not a complete local RAG architecture. It fixes the most visible failure mode where conversation history and generic chunk similarity drag a fuzzy question back to the wrong PDF. The next layer should separate document resolution from evidence planning more explicitly:
+
+- Document registry: title, arXiv ID, aliases, abstract, source path, modality, and recent/opened-time signals.
+- Query router: classify same-document follow-up vs cross-document switch vs global search/compare.
+- Evidence planner: after document resolution, retrieve the right section/table/figure/formula chunks inside the selected document set.
+- Structural chunk metadata: page, section, table/figure number, captions, OCR/VLM evidence, and source coordinates.
 
 ## Re-run
 

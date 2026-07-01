@@ -187,6 +187,10 @@ function localAnchorTerms(query = "") {
     add("adaptive-rag", "single-step", "multi-step");
   if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
     add("adaptive-rag", "query complexity");
+  if (/(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized))
+    add("visrag", "vision-based", "multi-modality", "document image", "vlm");
+  if (/(self-?rag|自我|反思|reflection|批判|critique)/i.test(normalized))
+    add("self-rag", "reflection tokens", "isrel", "issup", "isuse");
   const generic = new Set([
     "rag",
     "the",

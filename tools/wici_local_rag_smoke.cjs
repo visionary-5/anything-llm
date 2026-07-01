@@ -247,6 +247,18 @@ async function main() {
       ],
     },
     {
+      name: "visrag-fuzzy-switch-from-adaptive",
+      title: "2410.10594v2.pdf",
+      message: "视觉 RAG 那篇说端到端提升大概多少？",
+      mustMatch: [/20\s?[-–]\s?40\s?%|20.*40|40.*20/i],
+    },
+    {
+      name: "selfrag-fuzzy-switch",
+      title: "2310.11511v1.pdf",
+      message: "再换到那个自我反思的 RAG，它靠什么决定要不要检索？",
+      mustMatch: [/SELF-RAG|self-rag/i, /reflection|反思|Retrieve/i],
+    },
+    {
       name: "numeric-miss",
       noSources: true,
       message:

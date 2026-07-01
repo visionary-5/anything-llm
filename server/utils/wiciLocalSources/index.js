@@ -277,6 +277,17 @@ function expandedQueryTerms(query = "") {
     add("adaptive-rag", "strategy", "single-step", "multi-step");
   if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
     add("adaptive-rag", "strategy", "query complexity");
+  if (/(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized))
+    add(
+      "visrag",
+      "vision-based",
+      "multi-modality",
+      "document image",
+      "vlm",
+      "textrag"
+    );
+  if (/(self-?rag|自我|反思|reflection|批判|critique)/i.test(normalized))
+    add("self-rag", "reflection tokens", "isrel", "issup", "isuse");
 
   return Array.from(terms);
 }
@@ -289,6 +300,7 @@ function highSignalQueryTerms(terms = []) {
   const generic = new Set([
     "query",
     "complexity",
+    "rag",
     "figure",
     "table",
     "paper",
@@ -332,8 +344,9 @@ function queryIntent(query = "") {
 function shouldRunOnDemandForQuery(query = "", chatMode = "automatic") {
   if (!onDemandIndexingEnabled()) return false;
   if (chatMode === "chat") return false;
-  return /(local|file|files|pdf|paper|document|download|find|search|本地|文件|文档|论文|下载|找|搜|照片|图片|截图)/i.test(
-    normalizeText(query)
+  const normalized = normalizeText(query);
+  return /(local|file|files|pdf|paper|document|download|find|search|rag|visrag|self-?rag|adaptive-rag|reflection|本地|文件|文档|论文|下载|找|搜|照片|图片|截图|视觉|自我|反思|检索)/i.test(
+    normalized
   );
 }
 
@@ -532,15 +545,20 @@ function stateStrongMatchesForQuery(state, query = "") {
   }
 
   const seen = new Set();
-  return matches
+  const sorted = matches
     .filter((match) => match.location)
     .sort((a, b) => b.score - a.score)
     .filter((match) => {
       if (seen.has(match.location)) return false;
       seen.add(match.location);
       return true;
-    })
-    .slice(0, 5);
+    });
+
+  const [top, next] = sorted;
+  if (top?.score >= 160 && (!next || next.score < top.score * 0.6))
+    return [top];
+
+  return sorted.slice(0, 5);
 }
 
 function rankedCandidatesForQuery({ files = [], state, force, query = "" }) {

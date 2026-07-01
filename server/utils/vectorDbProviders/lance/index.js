@@ -373,17 +373,29 @@ class LanceDb extends VectorDatabase {
       // because we then cannot atomically control our namespace to granularly find/remove documents
       // from vectordb.
       const EmbedderEngine = getEmbeddingEngineSelection();
+      const configuredChunkSize = await SystemSettings.getValueOrFallback({
+        label: "text_splitter_chunk_size",
+      });
+      const configuredChunkOverlap = await SystemSettings.getValueOrFallback(
+        { label: "text_splitter_chunk_overlap" },
+        20
+      );
+      const localRagChunkSize =
+        metadata?.wiciLocalSource &&
+        Number(process.env.WICI_LOCAL_RAG_CHUNK_SIZE || 1800) > 0
+          ? Number(process.env.WICI_LOCAL_RAG_CHUNK_SIZE || 1800)
+          : configuredChunkSize;
+      const localRagChunkOverlap =
+        metadata?.wiciLocalSource &&
+        Number(process.env.WICI_LOCAL_RAG_CHUNK_OVERLAP || 120) >= 0
+          ? Number(process.env.WICI_LOCAL_RAG_CHUNK_OVERLAP || 120)
+          : configuredChunkOverlap;
       const textSplitter = new TextSplitter({
         chunkSize: TextSplitter.determineMaxChunkSize(
-          await SystemSettings.getValueOrFallback({
-            label: "text_splitter_chunk_size",
-          }),
+          localRagChunkSize,
           EmbedderEngine?.embeddingMaxChunkLength
         ),
-        chunkOverlap: await SystemSettings.getValueOrFallback(
-          { label: "text_splitter_chunk_overlap" },
-          20
-        ),
+        chunkOverlap: localRagChunkOverlap,
         chunkHeaderMeta: TextSplitter.buildHeaderMeta(metadata),
         chunkPrefix: EmbedderEngine?.embeddingPrefix,
       });

@@ -21,6 +21,24 @@ const DEFAULT_EXTENSIONS = [
   ".webp",
   ".xlsx",
 ];
+const DEFAULT_ON_DEMAND_DOCUMENT_EXTENSIONS = [
+  ".csv",
+  ".docx",
+  ".json",
+  ".md",
+  ".pdf",
+  ".txt",
+  ".xlsx",
+];
+const DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS = [
+  ".bmp",
+  ".gif",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".webp",
+];
+const CODE_OR_DATA_EXTENSIONS = new Set([".csv", ".json", ".md"]);
 const EXTENSION_PRIORITY = {
   ".pdf": 0,
   ".docx": 1,
@@ -111,6 +129,13 @@ function localSourcesEnabled() {
   return String(process.env.WICI_LOCAL_SOURCES_ENABLED ?? "true") !== "false";
 }
 
+function onDemandIndexingEnabled() {
+  return (
+    localSourcesEnabled() &&
+    String(process.env.WICI_LOCAL_ON_DEMAND_ENABLED ?? "true") !== "false"
+  );
+}
+
 function readJson(filepath, fallback) {
   try {
     if (!fs.existsSync(filepath)) return fallback;
@@ -146,6 +171,17 @@ function parseExtensions(extensions) {
     .filter(Boolean)
     .map((value) => (value.startsWith(".") ? value : `.${value}`));
   return new Set(parsed.length > 0 ? parsed : DEFAULT_EXTENSIONS);
+}
+
+function defaultUserRoots({ includePictures = false } = {}) {
+  const home = os.homedir();
+  const roots = [
+    path.join(home, "Documents"),
+    path.join(home, "Downloads"),
+    path.join(home, "Desktop"),
+  ];
+  if (includePictures) roots.push(path.join(home, "Pictures"));
+  return roots;
 }
 
 function expandRoot(root) {
@@ -192,6 +228,71 @@ function normalizeOptions(options = {}) {
       )
     ),
   };
+}
+
+function normalizeText(value = "") {
+  return String(value)
+    .toLowerCase()
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function queryTerms(query = "") {
+  const normalized = normalizeText(query);
+  const terms = new Set();
+  for (const match of normalized.matchAll(/[a-z0-9][a-z0-9._-]{1,}/g))
+    terms.add(match[0]);
+  for (const match of normalized.matchAll(/[\u4e00-\u9fff]{2,}/g))
+    terms.add(match[0]);
+  return Array.from(terms).filter(
+    (term) =>
+      ![
+        "the",
+        "and",
+        "with",
+        "this",
+        "that",
+        "local",
+        "file",
+        "files",
+        "pdf",
+        "本地",
+        "文件",
+        "文档",
+        "这个",
+        "里面",
+      ].includes(term)
+  );
+}
+
+function queryIntent(query = "") {
+  const normalized = normalizeText(query);
+  const wantsImage =
+    /(image|photo|picture|screenshot|jpeg|jpg|png|照片|图片|截图|相册)/i.test(
+      normalized
+    );
+  const wantsPaper = /(pdf|paper|论文|文献|arxiv|publication|whitepaper)/i.test(
+    normalized
+  );
+  const wantsCode =
+    /(code|repo|repository|source|readme|markdown|md|json|csv|代码|源码|仓库|项目|配置)/i.test(
+      normalized
+    );
+  const wantsDocument =
+    wantsImage === false ||
+    /(pdf|paper|document|docx|xlsx|csv|txt|md|论文|文档|文件|报告|表格|下载)/i.test(
+      normalized
+    );
+  return { wantsCode, wantsDocument, wantsImage, wantsPaper };
+}
+
+function shouldRunOnDemandForQuery(query = "", chatMode = "automatic") {
+  if (!onDemandIndexingEnabled()) return false;
+  if (chatMode === "chat") return false;
+  return /(local|file|files|pdf|paper|document|download|find|search|本地|文件|文档|论文|下载|找|搜|照片|图片|截图)/i.test(
+    normalizeText(query)
+  );
 }
 
 function prioritizedScanRoots(roots = []) {
@@ -258,6 +359,110 @@ function compareFingerprints(a, b) {
     if (aPriority[index] > bPriority[index]) return 1;
   }
   return 0;
+}
+
+function scoreFingerprintForQuery(fingerprint, query = "") {
+  const terms = queryTerms(query);
+  const { wantsCode, wantsDocument, wantsImage, wantsPaper } =
+    queryIntent(query);
+  const name = normalizeText(path.basename(fingerprint.path));
+  const fullPath = normalizeText(fingerprint.path);
+  const extension = fingerprint.extension;
+  let score = 0;
+  const hasTermMatch = terms.some((term) => {
+    const normalizedTerm = normalizeText(term);
+    return (
+      normalizedTerm.length >= 2 &&
+      (name.includes(normalizedTerm) || fullPath.includes(normalizedTerm))
+    );
+  });
+
+  if (!wantsImage && DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension))
+    return 0;
+  if (fullPath.includes(".photoslibrary/") && !wantsImage) return 0;
+  if (wantsPaper && extension !== ".pdf" && !hasTermMatch) return 0;
+  if (CODE_OR_DATA_EXTENSIONS.has(extension) && !wantsCode && !hasTermMatch)
+    return 0;
+
+  if (
+    wantsDocument &&
+    DEFAULT_ON_DEMAND_DOCUMENT_EXTENSIONS.includes(extension)
+  )
+    score += 20;
+  if (wantsImage && DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension))
+    score += 20;
+  if (wantsPaper && extension === ".pdf") score += 30;
+  if (/spreadsheet|sheet|excel|表格/i.test(query) && extension === ".xlsx")
+    score += 20;
+
+  for (const term of terms) {
+    if (name.includes(term)) score += 15;
+    else if (fullPath.includes(term)) score += 5;
+  }
+
+  const ageHours = Math.max(
+    0,
+    (Date.now() - Number(fingerprint.mtimeMs || 0)) / 3_600_000
+  );
+  score += Math.max(0, 10 - Math.log10(ageHours + 1) * 2);
+
+  if (fullPath.includes("/documents/")) score += 6;
+  if (fullPath.includes("/downloads/")) score += 5;
+  if (fullPath.includes("/desktop/")) score += 4;
+  if (fullPath.includes("/pictures/")) score += wantsImage ? 3 : -8;
+  if (fullPath.includes(".photoslibrary/")) score += wantsImage ? -2 : -30;
+
+  return score;
+}
+
+function stateHasStrongMatchForQuery(state, query = "") {
+  const terms = queryTerms(query).filter(
+    (term) => /^\d{3,}/.test(term) || normalizeText(term).length >= 5
+  );
+  if (terms.length === 0) return false;
+
+  for (const [key, row] of Object.entries(state?.files || {})) {
+    const documents = Array.isArray(row?.documents) ? row.documents : [];
+    const searchable = normalizeText(
+      [
+        key,
+        ...documents.flatMap((document) => [
+          document?.title,
+          document?.chunkSource,
+          document?.description,
+          String(document?.pageContent || "").slice(0, 50_000),
+        ]),
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+    if (!searchable) continue;
+
+    const matchedTerms = terms.filter((term) =>
+      searchable.includes(normalizeText(term))
+    );
+    if (
+      matchedTerms.some((term) => /^\d{3,}/.test(term)) ||
+      matchedTerms.length >= 1
+    )
+      return true;
+  }
+
+  return false;
+}
+
+function rankedCandidatesForQuery({ files = [], state, force, query = "" }) {
+  return candidatesFor(files, state, force)
+    .map((fingerprint) => ({
+      fingerprint,
+      score: scoreFingerprintForQuery(fingerprint, query),
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return compareFingerprints(a.fingerprint, b.fingerprint);
+    })
+    .map(({ fingerprint, score }) => ({ ...fingerprint, score }));
 }
 
 function scanLocalFiles(options = {}) {
@@ -659,6 +864,135 @@ async function runIndexJob(job, { workspace, userId, options }) {
   job.summary.elapsedMs = Date.now() - started;
 }
 
+async function maybeIndexLocalSourcesForQuery({
+  workspace,
+  userId = null,
+  query = "",
+  chatMode = "automatic",
+} = {}) {
+  const started = Date.now();
+  if (!workspace?.slug || !shouldRunOnDemandForQuery(query, chatMode)) {
+    return { indexed: 0, attempted: 0, skipped: true, reason: "not_triggered" };
+  }
+  if (activeJobForWorkspace(workspace.slug)) {
+    return { indexed: 0, attempted: 0, skipped: true, reason: "job_running" };
+  }
+
+  const intent = queryIntent(query);
+  const roots = defaultUserRoots({ includePictures: intent.wantsImage });
+  const extensions = [
+    ...DEFAULT_ON_DEMAND_DOCUMENT_EXTENSIONS,
+    ...(intent.wantsImage ? DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS : []),
+  ];
+  const options = {
+    roots,
+    extensions,
+    maxBytes:
+      Number(process.env.WICI_LOCAL_ON_DEMAND_MAX_BYTES || 75) * 1024 * 1024,
+    maxScanFiles: Number(
+      process.env.WICI_LOCAL_ON_DEMAND_MAX_SCAN_FILES || 5_000
+    ),
+    maxVisitedEntries: Number(
+      process.env.WICI_LOCAL_ON_DEMAND_MAX_VISITED_ENTRIES || 25_000
+    ),
+    force: false,
+  };
+  const state = readState(workspace.slug);
+  if (stateHasStrongMatchForQuery(state, query)) {
+    return {
+      indexed: 0,
+      attempted: 0,
+      skipped: true,
+      reason: "indexed_candidate_exists",
+      elapsedMs: Date.now() - started,
+    };
+  }
+
+  const scan = scanLocalFiles(options);
+  const ranked = rankedCandidatesForQuery({
+    files: scan.files,
+    state,
+    force: false,
+    query,
+  });
+  const maxDocs = Math.max(
+    0,
+    Number(
+      intent.wantsImage
+        ? process.env.WICI_LOCAL_ON_DEMAND_IMAGE_LIMIT || 1
+        : process.env.WICI_LOCAL_ON_DEMAND_DOCUMENT_LIMIT || 3
+    )
+  );
+  const candidates = ranked.slice(0, maxDocs);
+  if (candidates.length === 0) {
+    return {
+      indexed: 0,
+      attempted: 0,
+      skipped: true,
+      reason: "no_candidates",
+      elapsedMs: Date.now() - started,
+      scan: {
+        seen: scan.files.length,
+        truncated: scan.truncated,
+        roots: scan.roots,
+      },
+    };
+  }
+
+  const collector = new CollectorApi();
+  if (!(await collector.online())) {
+    return {
+      indexed: 0,
+      attempted: candidates.length,
+      skipped: true,
+      reason: "collector_offline",
+      elapsedMs: Date.now() - started,
+    };
+  }
+
+  const rows = [];
+  let indexed = 0;
+  for (const fingerprint of candidates) {
+    const row = {
+      path: fingerprint.path,
+      extension: fingerprint.extension,
+      score: fingerprint.score,
+      ok: false,
+      error: null,
+      documents: [],
+    };
+    try {
+      row.documents = await processFingerprint({
+        collector,
+        workspace,
+        fingerprint,
+        state,
+        userId,
+      });
+      row.ok = true;
+      indexed += 1;
+      writeState(workspace.slug, state);
+    } catch (error) {
+      row.error = error.message;
+    }
+    rows.push(row);
+  }
+
+  return {
+    indexed,
+    attempted: candidates.length,
+    skipped: false,
+    reason: null,
+    elapsedMs: Date.now() - started,
+    scan: {
+      seen: scan.files.length,
+      truncated: scan.truncated,
+      roots: scan.roots,
+    },
+    rows,
+  };
+}
+
 function startLocalSourceIndexJob({ workspace, userId, options = {} }) {
   const runningJob = activeJobForWorkspace(workspace.slug);
   if (runningJob)
@@ -716,6 +1050,7 @@ module.exports = {
   getLocalSourceJob,
   getWorkspaceLocalSourceInfo,
   localSourcesEnabled,
+  maybeIndexLocalSourcesForQuery,
   previewLocalSource,
   startLocalSourceIndexJob,
 };

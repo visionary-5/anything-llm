@@ -26,6 +26,8 @@ const {
   isWithin,
   sanitizeFileName,
 } = require("../files");
+const { maybeIndexLocalSourcesForQuery } = require("../wiciLocalSources");
+const { lexicalEvidenceForQuery } = require("../wiciLocalRag");
 /**
  * @typedef ResponseObject
  * @property {string} id - uuid of response
@@ -237,6 +239,12 @@ async function chatSync({
 
   const VectorDb = getVectorDbClass();
   const messageLimit = workspace?.openAiHistory || 20;
+  const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
+    workspace,
+    userId: user?.id || null,
+    query: message,
+    chatMode,
+  });
   const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
 
@@ -269,6 +277,7 @@ async function chatSync({
       error: null,
       textResponse,
       metrics: {},
+      wiciLocalIndex: onDemandLocalIndex,
     };
   }
 
@@ -367,6 +376,12 @@ async function chatSync({
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const lexicalEvidence = await lexicalEvidenceForQuery({
+    query: message,
+    sources: filledSources.sources,
+    workspaceId: workspace?.id,
+    maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
+  });
 
   // Why does contextTexts get all the info, but sources only get current search?
   // This is to give the ability of the LLM to "comprehend" a contextual response without
@@ -377,9 +392,17 @@ async function chatSync({
   // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
   contextTexts = [
     ...contextTexts,
-    ...formatSourcesForContext(filledSources.sources, contextTexts.length),
+    ...lexicalEvidence.contextTexts,
+    ...formatSourcesForContext(
+      filledSources.sources,
+      contextTexts.length + lexicalEvidence.contextTexts.length
+    ),
   ];
-  sources = [...sources, ...vectorSearchResults.sources];
+  sources = [
+    ...sources,
+    ...lexicalEvidence.sources,
+    ...vectorSearchResults.sources,
+  ];
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -412,6 +435,7 @@ async function chatSync({
       error: null,
       textResponse,
       metrics: {},
+      wiciLocalIndex: onDemandLocalIndex,
     };
   }
 
@@ -476,6 +500,7 @@ async function chatSync({
     textResponse,
     sources,
     metrics: performanceMetrics,
+    wiciLocalIndex: onDemandLocalIndex,
   };
 }
 
@@ -617,6 +642,12 @@ async function streamChat({
 
   const VectorDb = getVectorDbClass();
   const messageLimit = workspace?.openAiHistory || 20;
+  const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
+    workspace,
+    userId: user?.id || null,
+    query: message,
+    chatMode,
+  });
   const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
 
@@ -635,6 +666,7 @@ async function streamChat({
       close: true,
       error: null,
       metrics: {},
+      wiciLocalIndex: onDemandLocalIndex,
     });
     await WorkspaceChats.new({
       workspaceId: workspace.id,
@@ -758,6 +790,12 @@ async function streamChat({
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const lexicalEvidence = await lexicalEvidenceForQuery({
+    query: message,
+    sources: filledSources.sources,
+    workspaceId: workspace?.id,
+    maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
+  });
 
   // Why does contextTexts get all the info, but sources only get current search?
   // This is to give the ability of the LLM to "comprehend" a contextual response without
@@ -768,9 +806,17 @@ async function streamChat({
   // TLDR; reduces GitHub issues for "LLM citing document that has no answer in it" while keep answers highly accurate.
   contextTexts = [
     ...contextTexts,
-    ...formatSourcesForContext(filledSources.sources, contextTexts.length),
+    ...lexicalEvidence.contextTexts,
+    ...formatSourcesForContext(
+      filledSources.sources,
+      contextTexts.length + lexicalEvidence.contextTexts.length
+    ),
   ];
-  sources = [...sources, ...vectorSearchResults.sources];
+  sources = [
+    ...sources,
+    ...lexicalEvidence.sources,
+    ...vectorSearchResults.sources,
+  ];
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -786,6 +832,7 @@ async function streamChat({
       close: true,
       error: null,
       metrics: {},
+      wiciLocalIndex: onDemandLocalIndex,
     });
 
     await WorkspaceChats.new({
@@ -844,6 +891,7 @@ async function streamChat({
       close: true,
       error: false,
       metrics,
+      wiciLocalIndex: onDemandLocalIndex,
     });
   } else {
     const stream = await LLMConnector.streamGetChatCompletion(messages, {

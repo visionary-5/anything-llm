@@ -111,7 +111,7 @@ async function chatPrompt(workspace, user = null, opts = {}) {
 
   return `${memoryPrompt}
 
-When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data. Do not output hidden reasoning, chain-of-thought, "Thinking Process", or <think> blocks; only output the final answer.`;
+When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. Context marked as WICI exact local evidence or evidence_type=lexical_document_window is higher-priority than broad vector chunks for exact numbers, formulas, tables, and metric definitions. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data. Do not output hidden reasoning, chain-of-thought, "Thinking Process", or <think> blocks; only output the final answer.`;
 }
 
 // We use this util function to deduplicate sources from similarity searching
@@ -143,6 +143,9 @@ function sourceMetadataForContext(source = {}, index = null) {
     published: source.published || null,
     page: source.page || source.pageNumber || null,
     score: source.score ?? null,
+    evidence_type: source.wiciEvidenceType || null,
+    evidence_start: source.wiciEvidenceStart ?? null,
+    evidence_end: source.wiciEvidenceEnd ?? null,
   };
 
   return Object.fromEntries(

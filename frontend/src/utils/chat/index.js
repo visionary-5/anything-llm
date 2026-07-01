@@ -99,6 +99,8 @@ export default function handleChat(
     type === "textResponseChunk" ||
     type === "finalizeResponseStream"
   ) {
+    if (close === true) setLoadingResponse(false);
+
     const chatIdx = _chatHistory.findIndex((chat) => chat.uuid === uuid);
     if (chatIdx !== -1) {
       const existingHistory = { ..._chatHistory[chatIdx] };

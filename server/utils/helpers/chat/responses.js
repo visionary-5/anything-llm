@@ -325,6 +325,13 @@ function safeJSONStringify(obj) {
 }
 
 function writeResponseChunk(response, data) {
+  if (
+    !response ||
+    response.destroyed ||
+    response.writableEnded ||
+    response.closed
+  )
+    return;
   response.write(`data: ${safeJSONStringify(data)}\n\n`);
   return;
 }

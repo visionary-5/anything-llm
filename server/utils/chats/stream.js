@@ -14,6 +14,10 @@ const {
   recentChatHistory,
   sourceIdentifier,
   stripHiddenReasoning,
+  constrainSourcesToLocalMatches,
+  evidenceSourcesForLocalMatches,
+  hasLocalMatchedDocuments,
+  sourcesForClient,
 } = require("./index");
 const { maybeIndexLocalSourcesForQuery } = require("../wiciLocalSources");
 const { lexicalEvidenceForQuery } = require("../wiciLocalRag");
@@ -97,6 +101,31 @@ async function streamChatWithWorkspace(
     query: updatedMessage,
     chatMode,
   });
+  if (onDemandLocalIndex?.strictLocalMiss) {
+    const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      wiciLocalIndex: onDemandLocalIndex,
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+      },
+      threadId: thread?.id || null,
+      user,
+    });
+    return;
+  }
   const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
 
@@ -227,9 +256,17 @@ async function streamChatWithWorkspace(
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const constrainedSources = constrainSourcesToLocalMatches(
+    filledSources.sources,
+    onDemandLocalIndex
+  );
+  const evidenceSources = evidenceSourcesForLocalMatches(
+    filledSources.sources,
+    onDemandLocalIndex
+  );
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: updatedMessage,
-    sources: filledSources.sources,
+    sources: evidenceSources,
     workspaceId: workspace?.id,
     maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
   });
@@ -244,16 +281,15 @@ async function streamChatWithWorkspace(
   contextTexts = [
     ...contextTexts,
     ...lexicalEvidence.contextTexts,
-    ...formatSourcesForContext(
-      filledSources.sources,
-      contextTexts.length + lexicalEvidence.contextTexts.length
-    ),
+    ...(hasLocalMatchedDocuments(onDemandLocalIndex)
+      ? []
+      : formatSourcesForContext(
+          constrainedSources,
+          contextTexts.length + lexicalEvidence.contextTexts.length
+        )),
   ];
-  sources = [
-    ...sources,
-    ...lexicalEvidence.sources,
-    ...vectorSearchResults.sources,
-  ];
+  sources = [...sources, ...lexicalEvidence.sources, ...constrainedSources];
+  const responseSources = sourcesForClient(sources);
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -323,7 +359,7 @@ async function streamChatWithWorkspace(
     metrics = performanceMetrics;
     writeResponseChunk(response, {
       uuid,
-      sources,
+      sources: responseSources,
       type: "textResponseChunk",
       textResponse: completeText,
       close: true,
@@ -337,7 +373,7 @@ async function streamChatWithWorkspace(
     });
     completeText = await LLMConnector.handleStream(response, stream, {
       uuid,
-      sources,
+      sources: responseSources,
     });
     completeText = stripHiddenReasoning(completeText);
     metrics = stream.metrics;
@@ -349,7 +385,7 @@ async function streamChatWithWorkspace(
       prompt: message,
       response: {
         text: completeText,
-        sources,
+        sources: responseSources,
         type: chatMode,
         attachments,
         metrics,
@@ -372,10 +408,14 @@ async function streamChatWithWorkspace(
 
   writeResponseChunk(response, {
     uuid,
-    type: "finalizeResponseStream",
+    type: "abort",
+    textResponse: null,
+    sources: [],
     close: true,
-    error: false,
+    error:
+      "The model stream ended without a final answer. Retry the prompt or switch to a non-reasoning local model.",
     metrics,
+    wiciLocalIndex: onDemandLocalIndex,
   });
   return;
 }

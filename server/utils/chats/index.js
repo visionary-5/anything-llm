@@ -124,6 +124,59 @@ function sourceIdentifier(sourceDocument) {
   return `title:${sourceDocument.title}-timestamp:${sourceDocument.published}`;
 }
 
+function normalizedSourceValues(source = {}) {
+  return [
+    source.location,
+    source.sourcePath,
+    source.chunkSource,
+    source.url,
+    source.title,
+    source.filename,
+    source.name,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase().normalize("NFKC"));
+}
+
+function sourceMatchesLocalDocument(source = {}, document = {}) {
+  const sourceValues = normalizedSourceValues(source);
+  const documentValues = normalizedSourceValues(document);
+  return sourceValues.some((sourceValue) =>
+    documentValues.some(
+      (documentValue) =>
+        sourceValue === documentValue ||
+        sourceValue.includes(documentValue) ||
+        documentValue.includes(sourceValue)
+    )
+  );
+}
+
+function localMatchedDocuments(localIndex = {}) {
+  return Array.isArray(localIndex?.matchedDocuments)
+    ? localIndex.matchedDocuments
+    : [];
+}
+
+function hasLocalMatchedDocuments(localIndex = {}) {
+  return localMatchedDocuments(localIndex).length > 0;
+}
+
+function constrainSourcesToLocalMatches(sources = [], localIndex = {}) {
+  const matches = localMatchedDocuments(localIndex);
+  if (matches.length === 0) return sources;
+
+  const filtered = sources.filter((source) =>
+    matches.some((match) => sourceMatchesLocalDocument(source, match))
+  );
+  return filtered.length > 0 ? filtered : matches;
+}
+
+function evidenceSourcesForLocalMatches(sources = [], localIndex = {}) {
+  const matches = localMatchedDocuments(localIndex);
+  if (matches.length === 0) return sources;
+  return [...matches, ...constrainSourcesToLocalMatches(sources, localIndex)];
+}
+
 function cleanMetadataValue(value) {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -178,6 +231,53 @@ function formatSourcesForContext(sources = [], startIndex = 0) {
     .filter(Boolean);
 }
 
+function trimSourceText(value = "") {
+  const text = String(value || "");
+  const limit = Math.max(
+    200,
+    Number(process.env.WICI_LOCAL_SOURCE_SNIPPET_CHARS || 1_200)
+  );
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}...continued on in source document...`;
+}
+
+function normalizeClientSourceKey(value = "") {
+  return String(value).toLowerCase().normalize("NFKC").replace(/\s+/g, " ");
+}
+
+function sourceForClient(source = {}) {
+  const { pageContent, text, ...metadata } = source;
+  const snippet = trimSourceText(text || pageContent || "");
+  return {
+    ...metadata,
+    ...(snippet ? { text: snippet, pageContent: snippet } : {}),
+  };
+}
+
+function sourcesForClient(sources = []) {
+  const seen = new Set();
+  const responseSources = [];
+  for (const source of sources) {
+    const clientSource = sourceForClient(source);
+    const key = [
+      clientSource.location,
+      clientSource.sourcePath,
+      clientSource.chunkSource,
+      clientSource.url,
+      clientSource.title,
+      clientSource.wiciEvidenceType,
+      clientSource.wiciEvidenceStart,
+      normalizeClientSourceKey(clientSource.text || "").slice(0, 300),
+    ]
+      .filter((value) => value !== null && value !== undefined && value !== "")
+      .join(":");
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    responseSources.push(clientSource);
+  }
+  return responseSources;
+}
+
 function stripHiddenReasoning(text = "") {
   if (!text) return text;
   return String(text)
@@ -191,6 +291,10 @@ module.exports = {
   formatSourceForContext,
   formatSourcesForContext,
   stripHiddenReasoning,
+  constrainSourcesToLocalMatches,
+  evidenceSourcesForLocalMatches,
+  hasLocalMatchedDocuments,
+  sourcesForClient,
   recentChatHistory,
   chatPrompt,
   grepCommand,

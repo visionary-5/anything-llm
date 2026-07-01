@@ -11,6 +11,10 @@ const {
   sourceIdentifier,
   recentChatHistory,
   grepAllSlashCommands,
+  constrainSourcesToLocalMatches,
+  evidenceSourcesForLocalMatches,
+  hasLocalMatchedDocuments,
+  sourcesForClient,
 } = require("./index");
 const {
   EphemeralAgentHandler,
@@ -245,6 +249,31 @@ async function chatSync({
     query: message,
     chatMode,
   });
+  if (onDemandLocalIndex?.strictLocalMiss) {
+    const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+      },
+      threadId: thread?.id || null,
+      user,
+    });
+    return {
+      id: uuid,
+      type: "textResponse",
+      close: true,
+      error: null,
+      textResponse,
+      sources: [],
+      metrics: {},
+      wiciLocalIndex: onDemandLocalIndex,
+    };
+  }
   const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
 
@@ -376,9 +405,17 @@ async function chatSync({
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const constrainedSources = constrainSourcesToLocalMatches(
+    filledSources.sources,
+    onDemandLocalIndex
+  );
+  const evidenceSources = evidenceSourcesForLocalMatches(
+    filledSources.sources,
+    onDemandLocalIndex
+  );
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: message,
-    sources: filledSources.sources,
+    sources: evidenceSources,
     workspaceId: workspace?.id,
     maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
   });
@@ -393,16 +430,15 @@ async function chatSync({
   contextTexts = [
     ...contextTexts,
     ...lexicalEvidence.contextTexts,
-    ...formatSourcesForContext(
-      filledSources.sources,
-      contextTexts.length + lexicalEvidence.contextTexts.length
-    ),
+    ...(hasLocalMatchedDocuments(onDemandLocalIndex)
+      ? []
+      : formatSourcesForContext(
+          constrainedSources,
+          contextTexts.length + lexicalEvidence.contextTexts.length
+        )),
   ];
-  sources = [
-    ...sources,
-    ...lexicalEvidence.sources,
-    ...vectorSearchResults.sources,
-  ];
+  sources = [...sources, ...lexicalEvidence.sources, ...constrainedSources];
+  const responseSources = sourcesForClient(sources);
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -481,7 +517,7 @@ async function chatSync({
     prompt: message,
     response: {
       text: textResponse,
-      sources,
+      sources: responseSources,
       attachments,
       type: chatMode,
       metrics: performanceMetrics,
@@ -498,7 +534,7 @@ async function chatSync({
     error: null,
     chatId: chat.id,
     textResponse,
-    sources,
+    sources: responseSources,
     metrics: performanceMetrics,
     wiciLocalIndex: onDemandLocalIndex,
   };
@@ -648,6 +684,33 @@ async function streamChat({
     query: message,
     chatMode,
   });
+  if (onDemandLocalIndex?.strictLocalMiss) {
+    const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      metrics: {},
+      wiciLocalIndex: onDemandLocalIndex,
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+      },
+      threadId: thread?.id || null,
+      apiSessionId: sessionId,
+      user,
+    });
+    return;
+  }
   const hasVectorizedSpace = await VectorDb.hasNamespace(workspace.slug);
   const embeddingsCount = await VectorDb.namespaceCount(workspace.slug);
 
@@ -790,9 +853,17 @@ async function streamChat({
     history: rawHistory,
     filterIdentifiers: pinnedDocIdentifiers,
   });
+  const constrainedSources = constrainSourcesToLocalMatches(
+    filledSources.sources,
+    onDemandLocalIndex
+  );
+  const evidenceSources = evidenceSourcesForLocalMatches(
+    filledSources.sources,
+    onDemandLocalIndex
+  );
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: message,
-    sources: filledSources.sources,
+    sources: evidenceSources,
     workspaceId: workspace?.id,
     maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),
   });
@@ -807,16 +878,15 @@ async function streamChat({
   contextTexts = [
     ...contextTexts,
     ...lexicalEvidence.contextTexts,
-    ...formatSourcesForContext(
-      filledSources.sources,
-      contextTexts.length + lexicalEvidence.contextTexts.length
-    ),
+    ...(hasLocalMatchedDocuments(onDemandLocalIndex)
+      ? []
+      : formatSourcesForContext(
+          constrainedSources,
+          contextTexts.length + lexicalEvidence.contextTexts.length
+        )),
   ];
-  sources = [
-    ...sources,
-    ...lexicalEvidence.sources,
-    ...vectorSearchResults.sources,
-  ];
+  sources = [...sources, ...lexicalEvidence.sources, ...constrainedSources];
+  const responseSources = sourcesForClient(sources);
 
   // If in query mode and no context chunks are found from search, backfill, or pins -  do not
   // let the LLM try to hallucinate a response or use general knowledge and exit early
@@ -885,7 +955,7 @@ async function streamChat({
     metrics = performanceMetrics;
     writeResponseChunk(response, {
       uuid,
-      sources,
+      sources: responseSources,
       type: "textResponseChunk",
       textResponse: completeText,
       close: true,
@@ -908,7 +978,7 @@ async function streamChat({
       prompt: message,
       response: {
         text: completeText,
-        sources,
+        sources: responseSources,
         type: chatMode,
         metrics,
         attachments,
@@ -925,16 +995,21 @@ async function streamChat({
       error: false,
       chatId: chat.id,
       metrics,
-      sources,
+      sources: responseSources,
     });
     return;
   }
 
   writeResponseChunk(response, {
     uuid,
-    type: "finalizeResponseStream",
+    type: "abort",
+    textResponse: null,
+    sources: [],
     close: true,
-    error: false,
+    error:
+      "The model stream ended without a final answer. Retry the prompt or switch to a non-reasoning local model.",
+    metrics,
+    wiciLocalIndex: onDemandLocalIndex,
   });
   return;
 }

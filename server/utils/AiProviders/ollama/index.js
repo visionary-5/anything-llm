@@ -1,6 +1,5 @@
 const {
   writeResponseChunk,
-  clientAbortedHandler,
   formatChatHistory,
 } = require("../../helpers/chat/responses");
 const { NativeEmbedder } = require("../../EmbeddingEngines/native");
@@ -365,8 +364,9 @@ class OllamaAILLM {
       // We preserve the generated text but continue as if chat was completed
       // to preserve previously generated content.
       const handleAbort = () => {
-        stream?.endMeasurement(usage);
-        clientAbortedHandler(resolve, fullText);
+        console.log(
+          "\x1b[43m\x1b[34m[STREAM CLIENT CLOSED]\x1b[0m Client disconnected; continuing Ollama stream for persistence."
+        );
       };
       response.on("close", handleAbort);
 
@@ -402,47 +402,13 @@ class OllamaAILLM {
             const reasoningToken = chunk.message.thinking;
 
             if (reasoningToken) {
-              if (reasoningText.length === 0) {
-                const startTag = "<think>";
-                writeResponseChunk(response, {
-                  uuid,
-                  sources,
-                  type: "textResponseChunk",
-                  textResponse: startTag + reasoningToken,
-                  close: false,
-                  error: false,
-                });
-                reasoningText += startTag + reasoningToken;
-              } else {
-                writeResponseChunk(response, {
-                  uuid,
-                  sources,
-                  type: "textResponseChunk",
-                  textResponse: reasoningToken,
-                  close: false,
-                  error: false,
-                });
-                reasoningText += reasoningToken;
-              }
+              reasoningText += reasoningToken;
             } else if (content.length > 0) {
-              // If we have reasoning text, we need to close the reasoning tag and then append the content.
-              if (reasoningText.length > 0) {
-                const endTag = "</think>";
-                writeResponseChunk(response, {
-                  uuid,
-                  sources,
-                  type: "textResponseChunk",
-                  textResponse: endTag,
-                  close: false,
-                  error: false,
-                });
-                fullText += reasoningText + endTag;
-                reasoningText = ""; // Reset reasoning buffer
-              }
+              if (reasoningText.length > 0) reasoningText = "";
               fullText += content; // Append regular text
               writeResponseChunk(response, {
                 uuid,
-                sources,
+                sources: [],
                 type: "textResponseChunk",
                 textResponse: content,
                 close: false,

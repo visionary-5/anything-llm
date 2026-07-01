@@ -266,6 +266,10 @@ function queryTerms(query = "") {
   );
 }
 
+function numericQueryTerms(query = "") {
+  return queryTerms(query).filter((term) => /^\d{3,}/.test(term));
+}
+
 function queryIntent(query = "") {
   const normalized = normalizeText(query);
   const wantsImage =
@@ -368,6 +372,7 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
   const name = normalizeText(path.basename(fingerprint.path));
   const fullPath = normalizeText(fingerprint.path);
   const extension = fingerprint.extension;
+  const numericTerms = numericQueryTerms(query);
   let score = 0;
   const hasTermMatch = terms.some((term) => {
     const normalizedTerm = normalizeText(term);
@@ -378,6 +383,11 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
   });
 
   if (!wantsImage && DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension))
+    return 0;
+  if (
+    numericTerms.length > 0 &&
+    !numericTerms.every((term) => fullPath.includes(normalizeText(term)))
+  )
     return 0;
   if (fullPath.includes(".photoslibrary/") && !wantsImage) return 0;
   if (wantsPaper && extension !== ".pdf" && !hasTermMatch) return 0;
@@ -415,40 +425,67 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
   return score;
 }
 
-function stateHasStrongMatchForQuery(state, query = "") {
+function stateStrongMatchesForQuery(state, query = "") {
   const terms = queryTerms(query).filter(
     (term) => /^\d{3,}/.test(term) || normalizeText(term).length >= 5
   );
-  if (terms.length === 0) return false;
+  if (terms.length === 0) return [];
+  const numericTerms = numericQueryTerms(query);
 
+  const matches = [];
   for (const [key, row] of Object.entries(state?.files || {})) {
     const documents = Array.isArray(row?.documents) ? row.documents : [];
-    const searchable = normalizeText(
-      [
-        key,
-        ...documents.flatMap((document) => [
-          document?.title,
-          document?.chunkSource,
-          document?.description,
-          String(document?.pageContent || "").slice(0, 50_000),
-        ]),
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
-    if (!searchable) continue;
+    for (const document of documents) {
+      const identityText = normalizeText(
+        [key, document?.title, document?.chunkSource, document?.description]
+          .filter(Boolean)
+          .join("\n")
+      );
+      const contentText = normalizeText(
+        String(document?.pageContent || "").slice(0, 50_000)
+      );
+      const numericIdentityMatches = numericTerms.filter((term) =>
+        identityText.includes(normalizeText(term))
+      );
+      if (
+        numericTerms.length > 0 &&
+        numericIdentityMatches.length !== numericTerms.length
+      )
+        continue;
 
-    const matchedTerms = terms.filter((term) =>
-      searchable.includes(normalizeText(term))
-    );
-    if (
-      matchedTerms.some((term) => /^\d{3,}/.test(term)) ||
-      matchedTerms.length >= 1
-    )
-      return true;
+      const matchedTerms = terms.filter((term) => {
+        const normalizedTerm = normalizeText(term);
+        if (/^\d{3,}/.test(term)) return identityText.includes(normalizedTerm);
+        return (
+          identityText.includes(normalizedTerm) ||
+          contentText.includes(normalizedTerm)
+        );
+      });
+      if (matchedTerms.length === 0) continue;
+
+      matches.push({
+        title: document?.title || path.basename(key),
+        location: document?.location,
+        chunkSource: document?.chunkSource,
+        sourcePath: key,
+        docSource: document?.docSource,
+        score: matchedTerms.some((term) => /^\d{3,}/.test(term)) ? 100 : 50,
+        wiciLocalSourceMatch: true,
+        wiciLocalMatchedTerms: matchedTerms,
+      });
+    }
   }
 
-  return false;
+  const seen = new Set();
+  return matches
+    .filter((match) => match.location)
+    .sort((a, b) => b.score - a.score)
+    .filter((match) => {
+      if (seen.has(match.location)) return false;
+      seen.add(match.location);
+      return true;
+    })
+    .slice(0, 5);
 }
 
 function rankedCandidatesForQuery({ files = [], state, force, query = "" }) {
@@ -871,6 +908,7 @@ async function maybeIndexLocalSourcesForQuery({
   chatMode = "automatic",
 } = {}) {
   const started = Date.now();
+  const numericTerms = numericQueryTerms(query);
   if (!workspace?.slug || !shouldRunOnDemandForQuery(query, chatMode)) {
     return { indexed: 0, attempted: 0, skipped: true, reason: "not_triggered" };
   }
@@ -898,12 +936,14 @@ async function maybeIndexLocalSourcesForQuery({
     force: false,
   };
   const state = readState(workspace.slug);
-  if (stateHasStrongMatchForQuery(state, query)) {
+  const strongMatches = stateStrongMatchesForQuery(state, query);
+  if (strongMatches.length > 0) {
     return {
       indexed: 0,
       attempted: 0,
       skipped: true,
       reason: "indexed_candidate_exists",
+      matchedDocuments: strongMatches,
       elapsedMs: Date.now() - started,
     };
   }
@@ -930,6 +970,8 @@ async function maybeIndexLocalSourcesForQuery({
       attempted: 0,
       skipped: true,
       reason: "no_candidates",
+      strictLocalMiss: numericTerms.length > 0,
+      numericTerms,
       elapsedMs: Date.now() - started,
       scan: {
         seen: scan.files.length,

@@ -1,0 +1,122 @@
+{
+  "query": "帮我找那个盖了章的文件",
+  "elapsedMs": 1169,
+  "plan": {
+    "planner": "ollama",
+    "model": "qwen3.5:4b",
+    "should_search_local": true,
+    "needs_indexing": true,
+    "intent": "visual_file_search",
+    "search_scope": "documents",
+    "file_types": [
+      "pdf",
+      "image"
+    ],
+    "positive_concepts": [
+      "stamped document",
+      "official seal",
+      "red stamp"
+    ],
+    "negative_concepts": [],
+    "visual_tags": [
+      "has_stamp",
+      "seal"
+    ],
+    "document_hints": [],
+    "rewritten_queries": [
+      "find file with red stamp or official seal"
+    ],
+    "answer_guidance": "Return the best matching file path/title.",
+    "original_query": "帮我找那个盖了章的文件"
+  },
+  "terms": [
+    "stamped document",
+    "official seal",
+    "red stamp",
+    "has_stamp",
+    "seal",
+    "find file with red stamp or official seal"
+  ],
+  "top": [
+    {
+      "file": "/Users/saprk/Documents/b.pdf",
+      "title": "b.pdf",
+      "score": 66,
+      "hits": [
+        "red stamp",
+        "has_stamp",
+        "seal"
+      ],
+      "preview": "# WICI PDF Visual Preview SEARCH_SUMMARY: A document with a red seal and text indicating dimensions. VISIBLE_TEXT: 北京市福喜印务学校 通过 尺寸：40*40 OBJECTS: none SCENE: document/screenshot context, likely from an official or educational institution. COLORS_AND_ATTRIBUTES: white background, red seal, black text, dimensions in black font at the bottom right corner. RELATIONSHIPS: no specific spatial relationships are depicted; it is a static image of a document. DOCUMENT_TYPE: photo VISUAL_TAGS: has_s"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/1.1st resolution.pdf",
+      "title": "1.1st resolution.pdf",
+      "score": 12,
+      "hits": [
+        "seal"
+      ],
+      "preview": "WiCiTechnologiesHoldingLimited WRITTENRESOLUTIONOFTHEFIRSTDIRECTOR(S)ADOPTEDINACCORDANCE WITHTHECOMPANY'SARTICLESOFASSOCIATIONON 1 ST DAYOFJUNE,2026 APPOINTMENTOFDIRECTORSANDOFFICERS ITWASRESOLVEDthatZiliMeng,havingindicatedwillingness,beappointedasdirectorof thecompany,hisappointmenttobeeffectiveasat1 st June2026. REGISTEREDOFFICE ITWASRESOLVEDthattheregisteredofficeoftheCompanybesituatedattheofficesof3-212 GovernorsSquare,23LimeTreeBayAvenue,P.O.Box30746,SevenMileBeach,Grand CaymanKY1-1203,Cay"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/4.Share Certificate(s).pdf",
+      "title": "4.Share Certificate(s).pdf",
+      "score": 12,
+      "hits": [
+        "seal"
+      ],
+      "preview": "# WICI Visual Search Index Card SEARCH_SUMMARY: A share certificate issued by WiCi Technologies Holding Limited. VISIBLE_TEXT: WiCi Technologies Holding Limited; INCORPORATED IN THE CAYMAN ISLANDS; SHARE CERTIFICATE; AUTHORISED CAPITAL: US$50,000 divided into 500,000,000 shares of a nominal or par value of US$0.0001 each.; This is to certify that Grapefruit Jasmine Limited Of Sea Meadow House, P. O. Box 116, Road Town, Tortola, British Virgin Islands; is the registered holder of 54,740,000 (Fif"
+    },
+    {
+      "file": "/Users/saprk/wici-visionary-5/data/anythingllm-multimodal-corpus/files/documents/pdf_public_demo_agreement.pdf",
+      "title": "pdf_public_demo_agreement.pdf",
+      "score": 12,
+      "hits": [
+        "seal"
+      ],
+      "preview": "Public Demo Agreement This synthetic agreement is for the local retrieval demo only. The signature are a is at the lower right, and the red seal field is optional."
+    },
+    {
+      "file": "/Users/saprk/Downloads/3.Apply for shares.pdf",
+      "title": "3.Apply for shares.pdf",
+      "score": 0,
+      "hits": [],
+      "preview": "APPLICATIONFORSHARES TO:TheBoardofDirector(s) WiCiTechnologiesHoldingLimited(“theCompany”) CaymanIslands DearSir, Weherebyapplyfor54,739,999ordinarysharesofanominalorparvalueofUS$0.0001eachin thecapitaloftheCompany. Datedthis1stJune,2026 Yoursfaithfully, Forandonbehalfof GrapefruitJasmineLimited ___________________________________ AuthorizedSignature(s) Address:SeaMeadowHouse,P.O.Box116,RoadTown,Tortola,BritishVirginIslandsAPPLICATIONFORSHARES TO:TheBoardofDirector(s) WiCiTechnologiesHoldingLimi"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/8.@reg of dir.pdf",
+      "title": "8.@reg of dir.pdf",
+      "score": 0,
+      "hits": [],
+      "preview": "Jurisdiction:CaymanIslandsCompanyNo.435654 REGISTEROFDIRECTORSOF:WiCiTechnologiesHoldingLimitedPage1 Director’sNameAddressOfficeHeldDateof:NotificationtoRegistrarof: AppointmentResignationAppointmentResignation ZiliMengROOMD,5/F,BLOCKP,HKUST,660 CLEARWATERROAD,CLEARWATER BAY,HONGKONG Director1-Jun-20261-Jun-2026"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/9.@reg of mem.pdf",
+      "title": "9.@reg of mem.pdf",
+      "score": 0,
+      "hits": [],
+      "preview": "OrdinaryShareREGISTEROFMEMBERSOF:WiCiTechnologiesHoldingLimitedPage1 NameOfShareholderAddressNo.&Typeof Shares AmountPaid Thereon CertificateNo. &ShareNo. VotingRights (Y/N) Conditional (Y/N) Date&Natureof Acquisition (day/month/year) When&Where Transferred (day/month/year) Folio BolderCorporate Services(Cayman) Limited 3-212GovernorsSquare,23LimeTree BayAvenue,P.O.Box30746,Seven MileBeach,GrandCaymanKY1-1203, CaymanIslands 1 Ordinary Share PaidinFull(nocertificate)YN1-Jun-2026 SubscriberShare 1"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/2.Consent form.pdf",
+      "title": "2.Consent form.pdf",
+      "score": 0,
+      "hits": [],
+      "preview": "CONSENTFORM WiCiTechnologiesHoldingLimited I,theundersigned,herebyconfirmmyconsenttobeappointedasaDirectoroftheabovenamed companywitheffectfrom1 st June2026. I,herebyundertaketonotifytheRegisteredOfficeinwritingofmyresignation,orofthe appointmentofanyadditionalDirector,andherebyacknowledgethatsuchappointmentor resignationisinvalidwithoutsuchpriornotice,inaccordancewithSection55ofThe CompaniesLaw. ________________________ ZiliMeng FullName:ZiliMeng FormerName(includingalias,ifany):N/A Nationality"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/10.日常维护事项提示-CAY.pdf",
+      "title": "10.日常维护事项提示-CAY.pdf",
+      "score": 0,
+      "hits": [],
+      "preview": "上海宝域投资管理有限公司 10/F, Building C, Vanke Center 万科中心C栋10层 No.1000, Nanning Road 南宁路1000号 Shanghai 200235 China 中国 上海 Tel: +86-21-3126 1296 英属开曼群岛(Cayman)公司日常维护 一、公司年检 根据Cayman公司法规定，公司注册完成后，后续需完成每年的例行年检。 我司年检部门将于年检期限前邮件/电话通知公司预留的联系人，届时烦请公司及时配合，以维护Cayman公 司的正常存续及运作。 ※ 年检期限 1. Cayman公司设立当年即需要安排年检。 2. 年检通知时间为每年9-10月，年检截止日期为每年12月31日。 3. 年检完成后， Cayman注册处会出具相应的年检回执，通常在次年1-2月左右提供给公司。 ※ 未按规定年检的影响及后果 若未在规定时间内处理公司年检，公司将产生罚金并被政府从注册处公司名单上除名，但不会收到政府主动 出具的任何证明文件。若该Cayman公司在中国境内办理过外汇登记业务，则也许将产生不"
+    },
+    {
+      "file": "/Users/saprk/Downloads/sign/3.Apply for shares.pdf",
+      "title": "3.Apply for shares.pdf",
+      "score": 0,
+      "hits": [],
+      "preview": "APPLICATIONFORSHARES TO:TheBoardofDirector(s) WiCiTechnologiesHoldingLimited(“theCompany”) CaymanIslands DearSir, Weherebyapplyfor54,739,999ordinarysharesofanominalorparvalueofUS$0.0001eachin thecapitaloftheCompany. Datedthis1stJune,2026 Yoursfaithfully, Forandonbehalfof GrapefruitJasmineLimited ___________________________________ AuthorizedSignature(s) Address:SeaMeadowHouse,P.O.Box116,RoadTown,Tortola,BritishVirginIslandsAPPLICATIONFORSHARES TO:TheBoardofDirector(s) WiCiTechnologiesHoldingLimi"
+    }
+  ]
+}

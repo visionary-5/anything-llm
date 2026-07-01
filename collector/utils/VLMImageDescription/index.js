@@ -24,6 +24,7 @@ const SEARCH_CARD_PROMPT =
   "COLORS_AND_ATTRIBUTES: important colors, shapes, counts, and visual attributes.\n" +
   "RELATIONSHIPS: spatial relationships and actions, for example camera next to phone.\n" +
   "DOCUMENT_TYPE: photo, screenshot, receipt, form, chart, table, diagram, page, or unknown.\n" +
+  "VISUAL_TAGS: only include applicable tags from this list: has_stamp, red_stamp, seal, signature, blank_page, mostly_blank, form, receipt, chart, table, diagram, photo_people, two_people, cat, black_cat, phone, camera.\n" +
   "SEARCH_PHRASES: short natural-language phrases a user might search for to find this image.";
 
 function log(text, ...args) {

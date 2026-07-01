@@ -111,7 +111,7 @@ async function chatPrompt(workspace, user = null, opts = {}) {
 
   return `${memoryPrompt}
 
-When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. Context marked as WICI exact local evidence or evidence_type=lexical_document_window is higher-priority than broad vector chunks for exact numbers, formulas, tables, and metric definitions. If a WICI structured table hint is present, use it as the parsed table representation and include every requested row and column exactly. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data. Do not output hidden reasoning, chain-of-thought, "Thinking Process", or <think> blocks; only output the final answer.`;
+When local document context is provided, treat it as search results from the user's indexed local data. Use document titles, source paths, source apps, file types, pages, and snippets to answer directly. Context marked as WICI exact local evidence or evidence_type=lexical_document_window is higher-priority than broad vector chunks for exact numbers, formulas, tables, and metric definitions. If a WICI structured table hint is present, use it as the parsed table representation and include every requested row and column exactly. If the user asks to find something, return the best matching local file or document and include the source path/title when available. Do not ask the user where the file is before using local context. If the indexed local context does not contain a match, say that it was not found in the indexed local data. If the user asks whether other local paths can be indexed, answer that this fork can index selected local folders such as Home, Desktop, Documents, Pictures, Downloads, or Full disk through the Local folders controls, and that newly discovered files may need indexing before they become searchable. Do not claim you cannot change or expand local index paths. Do not output hidden reasoning, chain-of-thought, "Thinking Process", or <think> blocks; only output the final answer.`;
 }
 
 // We use this util function to deduplicate sources from similarity searching
@@ -523,6 +523,13 @@ function sourcesForClient(sources = []) {
   return responseSources;
 }
 
+function localPathCapabilityResponse() {
+  return [
+    "可以。这个 fork 支持通过 Local folders 索引本地路径，常用范围包括 Home、Desktop、Documents、Pictures、Downloads，也可以选择 Full disk。",
+    "新路径或新文件需要先完成索引后才会进入可检索范围；图片和扫描 PDF 还需要 OCR/VLM enrichment 后，视觉内容才更容易被搜到。",
+  ].join("\n");
+}
+
 function documentKeyForSource(source = {}) {
   return normalizeClientSourceKey(
     source.sourcePath ||
@@ -609,6 +616,7 @@ module.exports = {
   retryEmptyStreamCompletion,
   localSearchQueryForMessage,
   localDocumentResetQuery,
+  localPathCapabilityResponse,
   diversifySourcesByDocument,
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,

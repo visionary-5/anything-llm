@@ -8,6 +8,9 @@ const { tokenizeString } = require("../../../utils/tokenizer");
 const { default: slugify } = require("slugify");
 const PDFLoader = require("./PDFLoader");
 const OCRLoader = require("../../../utils/OCRLoader");
+const {
+  describePdfPreviewForSearchIndex,
+} = require("../../../utils/PDFPreviewDescription");
 
 async function asPdf({
   fullFilePath = "",
@@ -43,7 +46,11 @@ async function asPdf({
     );
   }
 
-  if (!pageContent.length) {
+  const visualPreview = await describePdfPreviewForSearchIndex(fullFilePath, {
+    filename,
+  });
+
+  if (!pageContent.length && !visualPreview) {
     console.error(`[asPDF] Resulting text content was empty for ${filename}.`);
     if (!options.absolutePath) trashFile(fullFilePath);
     return {
@@ -53,7 +60,9 @@ async function asPdf({
     };
   }
 
-  const content = pageContent.join("\n\n");
+  const content = [visualPreview, pageContent.join("\n\n")]
+    .filter(Boolean)
+    .join("\n\n");
   const data = {
     id: v4(),
     url: "file://" + fullFilePath,

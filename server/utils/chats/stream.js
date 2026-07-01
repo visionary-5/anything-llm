@@ -16,6 +16,7 @@ const {
   stripHiddenReasoning,
   retryEmptyStreamCompletion,
   localSearchQueryForMessage,
+  localPathCapabilityResponse,
   diversifySourcesByDocument,
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
@@ -25,6 +26,7 @@ const {
 } = require("./index");
 const { maybeIndexLocalSourcesForQuery } = require("../wiciLocalSources");
 const { lexicalEvidenceForQuery } = require("../wiciLocalRag");
+const { planLocalQuery } = require("../wiciLocalQueryPlanner");
 
 const VALID_CHAT_MODE = ["automatic", "chat", "query"];
 
@@ -106,14 +108,66 @@ async function streamChatWithWorkspace(
     updatedMessage,
     historyContextForLocal.rawHistory
   );
+  const localQueryPlan = await planLocalQuery({
+    query: updatedMessage,
+    rawHistory: historyContextForLocal.rawHistory,
+  });
+  if (localQueryPlan?.intent === "path_capability_question") {
+    const textResponse = localPathCapabilityResponse();
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      metrics: {
+        wiciLocalRag: {
+          plannerModel: localQueryPlan?.model || null,
+          plannerIntent: localQueryPlan?.intent || null,
+          contextSources: 0,
+        },
+      },
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "path_capability_question",
+        queryPlan: localQueryPlan,
+      },
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+        metrics: {
+          wiciLocalRag: {
+            plannerModel: localQueryPlan?.model || null,
+            plannerIntent: localQueryPlan?.intent || null,
+            contextSources: 0,
+          },
+        },
+      },
+      threadId: thread?.id || null,
+      include: false,
+      user,
+    });
+    return;
+  }
   const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
     workspace,
     userId: user?.id || null,
     query: localSearchQuery,
+    queryPlan: localQueryPlan,
     chatMode,
   });
+  onDemandLocalIndex.queryPlan = localQueryPlan;
   const localRagMetrics = {
     onDemandMs: onDemandLocalIndex?.elapsedMs ?? null,
+    plannerModel: localQueryPlan?.model || null,
+    plannerIntent: localQueryPlan?.intent || null,
     localSearchQueryChanged: localSearchQuery !== updatedMessage,
     vectorSearchMs: null,
     rerankMs: null,
@@ -294,6 +348,7 @@ async function streamChatWithWorkspace(
   const lexicalEvidenceStarted = Date.now();
   const lexicalEvidence = await lexicalEvidenceForQuery({
     query: updatedMessage,
+    queryPlan: localQueryPlan,
     sources: evidenceSources,
     workspaceId: workspace?.id,
     maxSnippets: Number(process.env.WICI_LOCAL_EXACT_SNIPPETS || 5),

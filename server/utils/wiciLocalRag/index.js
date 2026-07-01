@@ -1,51 +1,6 @@
 const { fileData } = require("../files");
 const { formatSourceForContext } = require("../chats");
-
-const QUERY_EXPANSIONS = {
-  内存: ["memory", "efficiency", "kb", "vector", "vectors"],
-  省内存: ["memory efficiency", "256kb", "4.5kb", "colpali"],
-  更省: ["memory efficiency", "256kb", "4.5kb"],
-  误差: ["error", "margin", "tolerance", "numeric"],
-  容限: ["error margin", "tolerance", "numeric"],
-  数值: ["numeric", "numerical", "number", "responses"],
-  允许: ["allows", "allowed"],
-  多大: ["allows", "allowed", "margin"],
-  评估: ["evaluation", "metrics", "accuracy"],
-  指标: ["metrics", "accuracy"],
-  核心: ["core", "idea", "propose", "framework", "abstract"],
-  想法: ["idea", "propose", "framework"],
-  策略: ["strategy", "strategies", "single-step", "multi-step"],
-  固定: ["fixed", "one-size-fits-all", "unnecessary", "overhead"],
-  不够: ["inadequate", "insufficient", "unnecessary", "overhead"],
-  复杂: ["complexity", "complex", "multi-step"],
-  几类: ["class", "classes", "levels", "labels"],
-  分成: ["class", "classes", "levels", "labels"],
-  标签: ["label", "labels"],
-  分类器: ["classifier"],
-  预测: ["predicted"],
-  比例: ["percentage", "percent", "%"],
-  占比: ["percentage", "percent", "%"],
-  占多少: ["percentage", "percent", "%"],
-  横轴: ["x-axis", "axis", "time per query"],
-  纵轴: ["y-axis", "axis", "performance", "f1"],
-  耗时: ["time per query", "efficiency"],
-  性能: ["performance", "f1"],
-  视觉: ["visrag", "vision-based", "multi-modality", "document image", "vlm"],
-  图像: ["image", "document image", "visrag", "vlm"],
-  多模态: ["multi-modal", "multi-modality", "visrag"],
-  端到端: ["end-to-end", "20-40%", "performance gain"],
-  提升: ["improvement", "performance gain", "relative improvement"],
-  自我: ["self-rag", "reflection tokens"],
-  反思: ["self-rag", "reflection tokens"],
-  批判: ["critique", "isrel", "issup", "isuse"],
-  权重: ["weight", "weighted", "pooling"],
-  公式: ["equation", "formula"],
-  图表: ["chart", "figure", "table"],
-  表格: ["table", "spreadsheet"],
-  图片: ["image", "photo", "figure"],
-  照片: ["image", "photo"],
-  论文: ["paper", "conference", "arxiv"],
-};
+const { planTerms } = require("../wiciLocalQueryPlanner");
 
 function normalizeText(value = "") {
   return String(value)
@@ -55,21 +10,14 @@ function normalizeText(value = "") {
     .trim();
 }
 
-function searchTerms(query = "") {
+function searchTerms(query = "", queryPlan = null) {
   const normalized = normalizeText(query);
   const terms = new Set();
   for (const match of normalized.matchAll(/[a-z0-9][a-z0-9._-]{1,}/g))
     terms.add(match[0]);
-  if (/\bself\b.*(rag|开头|论文|paper)/i.test(normalized)) {
-    terms.add("self-rag");
-    terms.add("reflection tokens");
-  }
+  for (const term of planTerms(queryPlan)) terms.add(term);
   for (const match of normalized.matchAll(/[\u4e00-\u9fff]{2,}/g)) {
-    const token = match[0];
-    terms.add(token);
-    for (const [key, expansions] of Object.entries(QUERY_EXPANSIONS)) {
-      if (token.includes(key)) expansions.forEach((term) => terms.add(term));
-    }
+    terms.add(match[0]);
   }
   return Array.from(terms).filter(
     (term) =>
@@ -284,11 +232,12 @@ function structuredHintsForWindow(body = "", profile = {}) {
 
 async function lexicalEvidenceForQuery({
   query = "",
+  queryPlan = null,
   sources = [],
   workspaceId = null,
   maxSnippets = 3,
 } = {}) {
-  const terms = searchTerms(query);
+  const terms = searchTerms(query, queryPlan);
   const profile = queryProfile(query);
   if (terms.length === 0 || sources.length === 0)
     return { contextTexts: [], sources: [] };

@@ -5,6 +5,7 @@ const path = require("path");
 const { CollectorApi } = require("../collectorApi");
 const { hotdirPath, isWithin, sanitizeFileName } = require("../files");
 const { Document } = require("../../models/documents");
+const { planTerms } = require("../wiciLocalQueryPlanner");
 
 const DEFAULT_EXTENSIONS = [
   ".bmp",
@@ -184,6 +185,26 @@ function defaultUserRoots({ includePictures = false } = {}) {
   return roots;
 }
 
+function rootsForQueryIntent(intent = {}) {
+  const home = os.homedir();
+  switch (intent.planScope) {
+    case "all_mac":
+      return ["/"];
+    case "user_home":
+      return [home];
+    case "documents":
+      return [path.join(home, "Documents")];
+    case "downloads":
+      return [path.join(home, "Downloads")];
+    case "desktop":
+      return [path.join(home, "Desktop")];
+    case "pictures":
+      return [path.join(home, "Pictures")];
+    default:
+      return defaultUserRoots({ includePictures: intent.wantsImage });
+  }
+}
+
 function expandRoot(root) {
   const input = String(root || "").trim();
   if (!input) return null;
@@ -266,50 +287,16 @@ function queryTerms(query = "") {
   );
 }
 
-function expandedQueryTerms(query = "") {
-  const normalized = normalizeText(query);
+function expandedQueryTerms(query = "", queryPlan = null) {
   const terms = new Set(queryTerms(query));
-  const add = (...values) => values.forEach((value) => terms.add(value));
-  const negatesVisual =
-    /(别|不要|不是|别沿用|别用|排除|not|don't|do not).{0,20}(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(
-      normalized
-    );
-  const negatesSelf =
-    /(别|不要|不是|别沿用|别用|排除|not|don't|do not).{0,20}(self|self-?rag|自我|反思|reflection)/i.test(
-      normalized
-    );
-
-  if (/(问题|query).*(难度|复杂度|complexity)/i.test(normalized))
-    add("adaptive-rag", "query complexity", "complexity", "classifier");
-  if (/(按|根据).*(难度|复杂度).*(策略|选择|选)/i.test(normalized))
-    add("adaptive-rag", "strategy", "single-step", "multi-step");
-  if (/(难度|复杂度).*(策略|分流|选择|选)/i.test(normalized))
-    add("adaptive-rag", "strategy", "query complexity");
-  if (
-    !negatesVisual &&
-    /(视觉|视图|图像|图片|vision|visual|visrag|multi-?modal)/i.test(normalized)
-  )
-    add(
-      "visrag",
-      "vision-based",
-      "multi-modality",
-      "document image",
-      "vlm",
-      "textrag"
-    );
-  if (
-    !negatesSelf &&
-    /(self-?rag|\bself\b.*(rag|开头|论文|paper)|自我|反思|reflection|批判|critique)/i.test(
-      normalized
-    )
-  )
-    add("self-rag", "reflection tokens", "isrel", "issup", "isuse");
-
+  for (const term of planTerms(queryPlan)) terms.add(term);
   return Array.from(terms);
 }
 
-function numericQueryTerms(query = "") {
-  return expandedQueryTerms(query).filter((term) => /^\d{3,}/.test(term));
+function numericQueryTerms(query = "", queryPlan = null) {
+  return expandedQueryTerms(query, queryPlan).filter((term) =>
+    /^\d{3,}/.test(term)
+  );
 }
 
 function highSignalQueryTerms(terms = []) {
@@ -336,15 +323,31 @@ function highSignalQueryTerms(terms = []) {
   });
 }
 
-function queryIntent(query = "") {
+function queryIntent(query = "", queryPlan = null) {
   const normalized = normalizeText(query);
+  const planFileTypes = new Set(queryPlan?.file_types || []);
+  const planIntent = queryPlan?.intent || "unknown";
+  const planScope = queryPlan?.search_scope || "current_workspace";
   const wantsImage =
+    planFileTypes.has("image") ||
+    planIntent === "image_search" ||
     /(image|photo|picture|screenshot|jpeg|jpg|png|照片|图片|截图|相册)/i.test(
       normalized
     );
-  const wantsPaper = /(pdf|paper|论文|文献|arxiv|publication|whitepaper)/i.test(
-    normalized
-  );
+  const wantsPaper =
+    planFileTypes.has("pdf") ||
+    /(pdf|paper|论文|文献|arxiv|publication|whitepaper)/i.test(normalized);
+  const wantsVisualDocument =
+    planIntent === "visual_file_search" ||
+    (Array.isArray(queryPlan?.visual_tags) && queryPlan.visual_tags.length > 0) ||
+    /(盖章|印章|公章|红章|stamp|stamped|seal|signature|签名|空白|blank)/i.test(
+      normalized
+    );
+  const wantsHome =
+    ["user_home", "all_mac"].includes(planScope) ||
+    /(home|user home|saprk|用户目录|主目录|家目录|全盘|全局|整个电脑|本机|mac)/i.test(
+      normalized
+    );
   const wantsCode =
     /(code|repo|repository|source|readme|markdown|md|json|csv|代码|源码|仓库|项目|配置)/i.test(
       normalized
@@ -354,14 +357,27 @@ function queryIntent(query = "") {
     /(pdf|paper|document|docx|xlsx|csv|txt|md|论文|文档|文件|报告|表格|下载)/i.test(
       normalized
     );
-  return { wantsCode, wantsDocument, wantsImage, wantsPaper };
+  return {
+    wantsCode,
+    wantsDocument,
+    wantsHome,
+    wantsImage,
+    wantsPaper,
+    wantsVisualDocument,
+    planScope,
+  };
 }
 
-function shouldRunOnDemandForQuery(query = "", chatMode = "automatic") {
+function shouldRunOnDemandForQuery(
+  query = "",
+  chatMode = "automatic",
+  queryPlan = null
+) {
   if (!onDemandIndexingEnabled()) return false;
   if (chatMode === "chat") return false;
+  if (queryPlan?.should_search_local || queryPlan?.needs_indexing) return true;
   const normalized = normalizeText(query);
-  return /(local|file|files|pdf|paper|document|download|find|search|rag|visrag|self|self-?rag|adaptive-rag|reflection|本地|文件|文档|论文|下载|找|搜|照片|图片|截图|视觉|自我|反思|检索|新检索|重新检索|全局检索|全盘检索|换一篇|另一篇|另一个|不是这篇)/i.test(
+  return /(local|file|files|pdf|paper|document|download|find|search|rag|visrag|self|self-?rag|adaptive-rag|reflection|stamp|seal|blank|本地|文件|文档|论文|下载|找|搜|照片|图片|截图|视觉|自我|反思|检索|新检索|重新检索|全局检索|全盘检索|换一篇|另一篇|另一个|不是这篇|盖章|印章|公章|红章|空白|黑猫|saprk|主目录|家目录|本机|mac)/i.test(
     normalized
   );
 }
@@ -432,10 +448,17 @@ function compareFingerprints(a, b) {
   return 0;
 }
 
-function scoreFingerprintForQuery(fingerprint, query = "") {
-  const terms = queryTerms(query);
-  const { wantsCode, wantsDocument, wantsImage, wantsPaper } =
-    queryIntent(query);
+function scoreFingerprintForQuery(fingerprint, query = "", queryPlan = null) {
+  const terms = Array.from(
+    new Set([...queryTerms(query), ...planTerms(queryPlan)])
+  );
+  const {
+    wantsCode,
+    wantsDocument,
+    wantsImage,
+    wantsPaper,
+    wantsVisualDocument,
+  } = queryIntent(query, queryPlan);
   const name = normalizeText(path.basename(fingerprint.path));
   const fullPath = normalizeText(fingerprint.path);
   const extension = fingerprint.extension;
@@ -449,7 +472,11 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
     );
   });
 
-  if (!wantsImage && DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension))
+  if (
+    !wantsImage &&
+    !wantsVisualDocument &&
+    DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension)
+  )
     return 0;
   if (
     numericTerms.length > 0 &&
@@ -468,6 +495,12 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
     score += 20;
   if (wantsImage && DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension))
     score += 20;
+  if (wantsVisualDocument && extension === ".pdf") score += 28;
+  if (
+    wantsVisualDocument &&
+    DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension)
+  )
+    score += 18;
   if (wantsPaper && extension === ".pdf") score += 30;
   if (/spreadsheet|sheet|excel|表格/i.test(query) && extension === ".xlsx")
     score += 20;
@@ -492,12 +525,12 @@ function scoreFingerprintForQuery(fingerprint, query = "") {
   return score;
 }
 
-function stateStrongMatchesForQuery(state, query = "") {
-  const terms = expandedQueryTerms(query).filter(
+function stateStrongMatchesForQuery(state, query = "", queryPlan = null) {
+  const terms = expandedQueryTerms(query, queryPlan).filter(
     (term) => /^\d{3,}/.test(term) || normalizeText(term).length >= 5
   );
   if (terms.length === 0) return [];
-  const numericTerms = numericQueryTerms(query);
+  const numericTerms = numericQueryTerms(query, queryPlan);
   const highSignalTerms = highSignalQueryTerms(terms);
 
   const matches = [];
@@ -577,11 +610,17 @@ function stateStrongMatchesForQuery(state, query = "") {
   return sorted.slice(0, 5);
 }
 
-function rankedCandidatesForQuery({ files = [], state, force, query = "" }) {
+function rankedCandidatesForQuery({
+  files = [],
+  state,
+  force,
+  query = "",
+  queryPlan = null,
+}) {
   return candidatesFor(files, state, force)
     .map((fingerprint) => ({
       fingerprint,
-      score: scoreFingerprintForQuery(fingerprint, query),
+      score: scoreFingerprintForQuery(fingerprint, query, queryPlan),
     }))
     .filter(({ score }) => score > 0)
     .sort((a, b) => {
@@ -1024,22 +1063,28 @@ async function maybeIndexLocalSourcesForQuery({
   workspace,
   userId = null,
   query = "",
+  queryPlan = null,
   chatMode = "automatic",
 } = {}) {
   const started = Date.now();
-  const numericTerms = numericQueryTerms(query);
-  if (!workspace?.slug || !shouldRunOnDemandForQuery(query, chatMode)) {
+  const numericTerms = numericQueryTerms(query, queryPlan);
+  if (
+    !workspace?.slug ||
+    !shouldRunOnDemandForQuery(query, chatMode, queryPlan)
+  ) {
     return { indexed: 0, attempted: 0, skipped: true, reason: "not_triggered" };
   }
   if (activeJobForWorkspace(workspace.slug)) {
     return { indexed: 0, attempted: 0, skipped: true, reason: "job_running" };
   }
 
-  const intent = queryIntent(query);
-  const roots = defaultUserRoots({ includePictures: intent.wantsImage });
+  const intent = queryIntent(query, queryPlan);
+  const roots = rootsForQueryIntent(intent);
   const extensions = [
     ...DEFAULT_ON_DEMAND_DOCUMENT_EXTENSIONS,
-    ...(intent.wantsImage ? DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS : []),
+    ...(intent.wantsImage || intent.wantsVisualDocument
+      ? DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS
+      : []),
   ];
   const options = {
     roots,
@@ -1055,7 +1100,7 @@ async function maybeIndexLocalSourcesForQuery({
     force: false,
   };
   const state = readState(workspace.slug);
-  const strongMatches = stateStrongMatchesForQuery(state, query);
+  const strongMatches = stateStrongMatchesForQuery(state, query, queryPlan);
   if (strongMatches.length > 0) {
     return {
       indexed: 0,
@@ -1075,6 +1120,7 @@ async function maybeIndexLocalSourcesForQuery({
     state,
     force: false,
     query,
+    queryPlan,
   });
   const maxDocs = Math.max(
     0,

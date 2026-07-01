@@ -1,0 +1,114 @@
+{
+  "elapsedMs": 6691,
+  "rows": [
+    {
+      "query": "帮我找那个盖了章的文件",
+      "elapsedMs": 1140,
+      "intent": "visual_file_search",
+      "scope": "documents",
+      "fileTypes": [
+        "pdf",
+        "image"
+      ],
+      "concepts": [
+        "stamped document",
+        "official seal",
+        "red stamp"
+      ],
+      "visualTags": [
+        "has_stamp",
+        "seal"
+      ],
+      "needsIndexing": true,
+      "model": "qwen3.5:4b"
+    },
+    {
+      "query": "你可以索引别的路径吗",
+      "elapsedMs": 856,
+      "intent": "path_capability_question",
+      "scope": "current_workspace",
+      "fileTypes": [],
+      "concepts": [],
+      "visualTags": [],
+      "needsIndexing": false,
+      "model": "qwen3.5:4b"
+    },
+    {
+      "query": "比如saprk目录下有个两个女生的照片，请问这个照片叫什么名字",
+      "elapsedMs": 1057,
+      "intent": "image_search",
+      "scope": "user_home",
+      "fileTypes": [
+        "image"
+      ],
+      "concepts": [
+        "two girls",
+        "photo of two people"
+      ],
+      "visualTags": [
+        "photo_people",
+        "two_people"
+      ],
+      "needsIndexing": true,
+      "model": "qwen3.5:4b"
+    },
+    {
+      "query": "我之前上传或索引过一张黑猫图片，帮我找出来。",
+      "elapsedMs": 958,
+      "intent": "image_search",
+      "scope": "pictures",
+      "fileTypes": [
+        "image"
+      ],
+      "concepts": [
+        "black cat",
+        "cat image"
+      ],
+      "visualTags": [
+        "black_cat"
+      ],
+      "needsIndexing": true,
+      "model": "qwen3.5:4b"
+    },
+    {
+      "query": "我本地那篇讲按问题难度选策略的 RAG 论文，核心想法是什么？",
+      "elapsedMs": 1265,
+      "intent": "document_qa",
+      "scope": "documents",
+      "fileTypes": [
+        "pdf"
+      ],
+      "concepts": [
+        "Adaptive-RAG",
+        "query complexity",
+        "strategy selection",
+        "non-retrieval",
+        "single-step retrieval",
+        "multi-step retrieval"
+      ],
+      "visualTags": [],
+      "needsIndexing": true,
+      "model": "qwen3.5:4b"
+    },
+    {
+      "query": "我下载的那篇视觉版 RAG 论文，为什么说传统 TextRAG 会丢信息？",
+      "elapsedMs": 1415,
+      "intent": "document_qa",
+      "scope": "documents",
+      "fileTypes": [
+        "pdf"
+      ],
+      "concepts": [
+        "Visual-RAG",
+        "TextRAG",
+        "information loss",
+        "visual context",
+        "image details",
+        "OCR limitations"
+      ],
+      "visualTags": [],
+      "needsIndexing": true,
+      "model": "qwen3.5:4b"
+    }
+  ]
+}

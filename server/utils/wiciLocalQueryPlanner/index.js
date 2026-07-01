@@ -100,11 +100,20 @@ function extractJson(text = "") {
 }
 
 function sanitizePlan(plan = {}, query = "") {
-  const intent = ALLOWED_INTENTS.has(plan.intent) ? plan.intent : "unknown";
+  if (!plan || typeof plan !== "object") plan = {};
+  const normalizedQuery = normalizeText(query);
+  let intent = ALLOWED_INTENTS.has(plan.intent) ? plan.intent : "unknown";
+  if (
+    intent === "visual_file_search" &&
+    /(图片|照片|图像|截图|相册|猫|黑猫|女生|女孩|浴室|洗手台|image|photo|picture|screenshot|cat)/i.test(
+      normalizedQuery
+    )
+  ) {
+    intent = "image_search";
+  }
   let searchScope = ALLOWED_SCOPES.has(plan.search_scope)
     ? plan.search_scope
     : "current_workspace";
-  const normalizedQuery = normalizeText(query);
   if (/(saprk|user home|home directory|主目录|家目录|用户目录)/i.test(normalizedQuery))
     searchScope = "user_home";
   if (/(全盘|all mac|整个电脑|整台电脑|full disk)/i.test(normalizedQuery))
@@ -336,6 +345,7 @@ async function planLocalQuery({ query = "", rawHistory = [] } = {}) {
 }
 
 function planTerms(plan = {}) {
+  if (!plan || typeof plan !== "object") return [];
   return uniqueStrings(
     [
       ...(plan.positive_concepts || []),

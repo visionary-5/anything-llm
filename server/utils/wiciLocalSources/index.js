@@ -213,6 +213,63 @@ function expandRoot(root) {
   return input;
 }
 
+function repoRoot() {
+  return path.resolve(__dirname, "../../..");
+}
+
+function projectRoot() {
+  return path.resolve(repoRoot(), "..");
+}
+
+function uniqueResolvedPaths(paths = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of paths) {
+    const expanded = expandRoot(item);
+    if (!expanded) continue;
+    const resolved = path.resolve(expanded);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    out.push(resolved);
+  }
+  return out;
+}
+
+function defaultSkipPathPrefixes() {
+  const root = repoRoot();
+  const project = projectRoot();
+  return uniqueResolvedPaths([
+    hotdirPath,
+    storageRoot(),
+    path.join(root, "collector", "hotdir"),
+    path.join(root, "server", "storage"),
+    path.join(root, "reports", "m9-full-disk-index"),
+    path.join(project, "external", "research"),
+    path.join(project, "reports"),
+  ]);
+}
+
+function parseSkipPathPrefixes(value) {
+  const configured =
+    value === undefined || value === null || value === ""
+      ? []
+      : String(value)
+          .split(/\n|,/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+  return uniqueResolvedPaths([...defaultSkipPathPrefixes(), ...configured]);
+}
+
+function pathMatchesOrInside(outer, inner) {
+  const resolvedOuter = path.resolve(outer);
+  const resolvedInner = path.resolve(inner);
+  return resolvedOuter === resolvedInner || isWithin(resolvedOuter, resolvedInner);
+}
+
+function rootExplicitlyAllowsPath(roots = [], prefix) {
+  return roots.some((root) => pathMatchesOrInside(prefix, root));
+}
+
 function normalizeOptions(options = {}) {
   const roots = (options.roots || [])
     .map(expandRoot)
@@ -247,6 +304,9 @@ function normalizeOptions(options = {}) {
           process.env.WICI_LOCAL_SOURCES_MAX_VISITED_ENTRIES ||
           200_000
       )
+    ),
+    skipPathPrefixes: parseSkipPathPrefixes(
+      options.skipPathPrefixes || process.env.WICI_LOCAL_SOURCES_SKIP_PATHS
     ),
   };
 }
@@ -339,7 +399,9 @@ function queryIntent(query = "", queryPlan = null) {
     /(pdf|paper|论文|文献|arxiv|publication|whitepaper)/i.test(normalized);
   const wantsVisualDocument =
     planIntent === "visual_file_search" ||
-    (Array.isArray(queryPlan?.visual_tags) && queryPlan.visual_tags.length > 0) ||
+    (planIntent !== "image_search" &&
+      Array.isArray(queryPlan?.visual_tags) &&
+      queryPlan.visual_tags.length > 0) ||
     /(盖章|印章|公章|红章|stamp|stamped|seal|signature|签名|空白|blank)/i.test(
       normalized
     );
@@ -415,6 +477,24 @@ function shouldSkipDir(name, includeHidden = false) {
   return false;
 }
 
+function shouldSkipDirectoryPath(directory, parsed) {
+  const resolved = path.resolve(directory);
+  for (const prefix of parsed.skipPathPrefixes || []) {
+    if (!pathMatchesOrInside(prefix, resolved)) continue;
+    if (rootExplicitlyAllowsPath(parsed.roots, prefix)) continue;
+    return true;
+  }
+
+  if (
+    !parsed.roots.includes(resolved) &&
+    fs.existsSync(path.join(resolved, ".git"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function fingerprintFor(filepath, stat) {
   const absolutePath = path.resolve(filepath);
   return {
@@ -479,6 +559,12 @@ function scoreFingerprintForQuery(fingerprint, query = "", queryPlan = null) {
   )
     return 0;
   if (
+    wantsImage &&
+    !wantsVisualDocument &&
+    !DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension)
+  )
+    return 0;
+  if (
     numericTerms.length > 0 &&
     !numericTerms.every((term) => fullPath.includes(normalizeText(term)))
   )
@@ -487,6 +573,14 @@ function scoreFingerprintForQuery(fingerprint, query = "", queryPlan = null) {
   if (wantsPaper && extension !== ".pdf" && !hasTermMatch) return 0;
   if (CODE_OR_DATA_EXTENSIONS.has(extension) && !wantsCode && !hasTermMatch)
     return 0;
+  if (
+    wantsImage &&
+    !wantsVisualDocument &&
+    DEFAULT_ON_DEMAND_IMAGE_EXTENSIONS.includes(extension) &&
+    !hasTermMatch
+  ) {
+    return 0;
+  }
 
   if (
     wantsDocument &&
@@ -714,6 +808,7 @@ function scanLocalFiles(options = {}) {
       if (stat.isSymbolicLink()) return;
       if (stat.isFile()) return considerFile(resolvedRoot);
       if (!stat.isDirectory()) return;
+      if (shouldSkipDirectoryPath(resolvedRoot, parsed)) return;
 
       const entries = sortEntries(
         fs.readdirSync(resolvedRoot, { withFileTypes: true })
@@ -753,6 +848,7 @@ function scanLocalFiles(options = {}) {
       maxBytes: parsed.maxBytes,
       maxScanFiles: parsed.maxScanFiles,
       maxVisitedEntries: parsed.maxVisitedEntries,
+      skipPathPrefixes: parsed.skipPathPrefixes,
     },
   };
 }
@@ -763,6 +859,18 @@ function candidatesFor(files, state, force) {
     const row = state.files[fingerprint.key];
     return !row || row.signature !== fingerprint.signature;
   });
+}
+
+function rememberFailedFingerprint(state, fingerprint, workspace, error) {
+  state.files[fingerprint.key] = {
+    signature: fingerprint.signature,
+    size: fingerprint.size,
+    workspace: workspace.slug,
+    documents: [],
+    indexedAt: new Date().toISOString(),
+    failed: true,
+    error: String(error?.message || error || "Indexing failed."),
+  };
 }
 
 function summarizeState(workspaceSlug) {
@@ -834,6 +942,7 @@ function previewLocalSource(workspaceSlug, options = {}) {
     extensions: scan.extensions,
     truncated: scan.truncated,
     skipped: scan.skipped.slice(0, 50),
+    limits: scan.limits,
     summary: {
       seen: scan.files.length,
       changedOrNew: allCandidates.length,
@@ -988,6 +1097,10 @@ async function runIndexJob(job, { workspace, userId, options }) {
     scanElapsedMs: 0,
     indexElapsedMs: 0,
     elapsedMs: 0,
+    avgOkMs: 0,
+    avgFailedMs: 0,
+    skippedSamples: [],
+    failedSamples: [],
   };
 
   if (!(await collector.online())) {
@@ -1010,6 +1123,9 @@ async function runIndexJob(job, { workspace, userId, options }) {
   job.summary.changedOrNew = allCandidates.length;
   job.summary.unchanged = scan.files.length - allCandidates.length;
   job.summary.attempted = candidates.length;
+  job.summary.skippedSamples = scan.skipped.slice(0, 25);
+  job.summary.roots = scan.roots;
+  job.summary.limits = scan.limits;
 
   for (const [index, fingerprint] of candidates.entries()) {
     job.current = {
@@ -1045,9 +1161,33 @@ async function runIndexJob(job, { workspace, userId, options }) {
     } catch (error) {
       row.error = error.message;
       job.summary.failed += 1;
+      if (job.summary.failedSamples.length < 25) {
+        job.summary.failedSamples.push({
+          path: fingerprint.path,
+          error: error.message,
+        });
+      }
+      rememberFailedFingerprint(state, fingerprint, workspace, error);
+      writeState(workspace.slug, state);
     }
 
     job.rows.push(row);
+    const okRows = job.rows.filter((item) => item.ok);
+    const failedRows = job.rows.filter((item) => !item.ok);
+    job.summary.avgOkMs =
+      okRows.length > 0
+        ? Math.round(
+            okRows.reduce((sum, item) => sum + item.elapsedMs, 0) /
+              okRows.length
+          )
+        : 0;
+    job.summary.avgFailedMs =
+      failedRows.length > 0
+        ? Math.round(
+            failedRows.reduce((sum, item) => sum + item.elapsedMs, 0) /
+              failedRows.length
+          )
+        : 0;
     job.summary.indexElapsedMs = Date.now() - indexStarted;
     job.summary.elapsedMs = Date.now() - started;
   }
@@ -1132,12 +1272,16 @@ async function maybeIndexLocalSourcesForQuery({
   );
   const candidates = ranked.slice(0, maxDocs);
   if (candidates.length === 0) {
+    const visualContentMiss = intent.wantsImage && !intent.wantsVisualDocument;
     return {
       indexed: 0,
       attempted: 0,
       skipped: true,
       reason: "no_candidates",
-      strictLocalMiss: numericTerms.length > 0,
+      strictLocalMiss: numericTerms.length > 0 || visualContentMiss,
+      strictLocalMissReason: visualContentMiss
+        ? "visual_content_requires_background_index"
+        : "numeric_or_high_signal_file_not_found",
       numericTerms,
       elapsedMs: Date.now() - started,
       scan: {
@@ -1190,6 +1334,8 @@ async function maybeIndexLocalSourcesForQuery({
       writeState(workspace.slug, state);
     } catch (error) {
       row.error = error.message;
+      rememberFailedFingerprint(state, fingerprint, workspace, error);
+      writeState(workspace.slug, state);
     }
     rows.push(row);
   }

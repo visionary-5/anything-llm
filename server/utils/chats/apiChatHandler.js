@@ -10,7 +10,10 @@ const {
   stripHiddenReasoning,
   retryEmptyStreamCompletion,
   localSearchQueryForMessage,
+  localFileSearchQuery,
   localPathCapabilityResponse,
+  localSearchFailureResponse,
+  localSearchMissResponse,
   diversifySourcesByDocument,
   sourceIdentifier,
   recentChatHistory,
@@ -260,10 +263,54 @@ async function chatSync({
     message,
     historyContextForLocal.rawHistory
   );
-  const localQueryPlan = await planLocalQuery({
-    query: message,
-    rawHistory: historyContextForLocal.rawHistory,
-  });
+  let localQueryPlan = null;
+  let onDemandLocalIndex = null;
+  try {
+    localQueryPlan = await planLocalQuery({
+      query: message,
+      rawHistory: localFileSearchQuery(message)
+        ? []
+        : historyContextForLocal.rawHistory,
+    });
+  } catch (error) {
+    console.error("[WICI Local RAG] Query planning failed.", error);
+    const textResponse = localSearchFailureResponse();
+    const metrics = {
+      wiciLocalRag: {
+        phase: "query_planning",
+        error: error.message,
+        contextSources: 0,
+      },
+    };
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        attachments,
+        type: chatMode,
+        metrics,
+      },
+      threadId: thread?.id || null,
+      apiSessionId: sessionId,
+      user,
+    });
+    return {
+      id: uuid,
+      type: "textResponse",
+      close: true,
+      error: null,
+      textResponse,
+      sources: [],
+      metrics,
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "query_planning_failed",
+        error: error.message,
+      },
+    };
+  }
   if (localQueryPlan?.intent === "path_capability_question") {
     const textResponse = localPathCapabilityResponse();
     const metrics = {
@@ -302,13 +349,56 @@ async function chatSync({
       },
     };
   }
-  const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
-    workspace,
-    userId: user?.id || null,
-    query: localSearchQuery,
-    queryPlan: localQueryPlan,
-    chatMode,
-  });
+  try {
+    onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
+      workspace,
+      userId: user?.id || null,
+      query: localSearchQuery,
+      queryPlan: localQueryPlan,
+      chatMode,
+    });
+  } catch (error) {
+    console.error("[WICI Local RAG] On-demand local indexing failed.", error);
+    const textResponse = localSearchFailureResponse();
+    const metrics = {
+      wiciLocalRag: {
+        phase: "on_demand_indexing",
+        plannerModel: localQueryPlan?.model || null,
+        plannerIntent: localQueryPlan?.intent || null,
+        error: error.message,
+        contextSources: 0,
+      },
+    };
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        attachments,
+        type: chatMode,
+        metrics,
+      },
+      threadId: thread?.id || null,
+      apiSessionId: sessionId,
+      user,
+    });
+    return {
+      id: uuid,
+      type: "textResponse",
+      close: true,
+      error: null,
+      textResponse,
+      sources: [],
+      metrics,
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "on_demand_indexing_failed",
+        error: error.message,
+        queryPlan: localQueryPlan,
+      },
+    };
+  }
   onDemandLocalIndex.queryPlan = localQueryPlan;
   const localRagMetrics = {
     onDemandMs: onDemandLocalIndex?.elapsedMs ?? null,
@@ -321,7 +411,9 @@ async function chatSync({
     contextSources: 0,
   };
   if (onDemandLocalIndex?.strictLocalMiss) {
-    const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
+    const textResponse = onDemandLocalIndex.numericTerms?.length
+      ? `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms.join(", ")} 的文件。`
+      : localSearchMissResponse();
     await WorkspaceChats.new({
       workspaceId: workspace.id,
       prompt: message,
@@ -330,6 +422,7 @@ async function chatSync({
         sources: [],
         type: chatMode,
         attachments,
+        metrics: { wiciLocalRag: localRagMetrics },
       },
       threadId: thread?.id || null,
       user,
@@ -341,7 +434,7 @@ async function chatSync({
       error: null,
       textResponse,
       sources: [],
-      metrics: {},
+      metrics: { wiciLocalRag: localRagMetrics },
       wiciLocalIndex: onDemandLocalIndex,
     };
   }
@@ -352,8 +445,11 @@ async function chatSync({
   // we should exit early as no information can be found under these conditions.
   if ((!hasVectorizedSpace || embeddingsCount === 0) && chatMode === "query") {
     const textResponse =
-      workspace?.queryRefusalResponse ??
-      "There is no relevant information in this workspace to answer your query.";
+      localFileSearchQuery(message) || localQueryPlan?.should_search_local
+        ? localSearchMissResponse()
+        : workspace?.queryRefusalResponse ??
+          "There is no relevant information in this workspace to answer your query.";
+    const metrics = { wiciLocalRag: localRagMetrics };
 
     await WorkspaceChats.new({
       workspaceId: workspace.id,
@@ -363,7 +459,7 @@ async function chatSync({
         sources: [],
         attachments: attachments,
         type: chatMode,
-        metrics: {},
+        metrics,
       },
       include: false,
       apiSessionId: sessionId,
@@ -376,7 +472,7 @@ async function chatSync({
       close: true,
       error: null,
       textResponse,
-      metrics: {},
+      metrics,
       wiciLocalIndex: onDemandLocalIndex,
     };
   }
@@ -522,8 +618,11 @@ async function chatSync({
   // let the LLM try to hallucinate a response or use general knowledge and exit early
   if (chatMode === "query" && contextTexts.length === 0) {
     const textResponse =
-      workspace?.queryRefusalResponse ??
-      "There is no relevant information in this workspace to answer your query.";
+      localFileSearchQuery(message) || localQueryPlan?.should_search_local
+        ? localSearchMissResponse()
+        : workspace?.queryRefusalResponse ??
+          "There is no relevant information in this workspace to answer your query.";
+    const metrics = { wiciLocalRag: localRagMetrics };
 
     await WorkspaceChats.new({
       workspaceId: workspace.id,
@@ -533,7 +632,7 @@ async function chatSync({
         sources: [],
         attachments: attachments,
         type: chatMode,
-        metrics: {},
+        metrics,
       },
       threadId: thread?.id || null,
       include: false,
@@ -548,7 +647,7 @@ async function chatSync({
       close: true,
       error: null,
       textResponse,
-      metrics: {},
+      metrics,
       wiciLocalIndex: onDemandLocalIndex,
     };
   }
@@ -768,10 +867,55 @@ async function streamChat({
     message,
     historyContextForLocal.rawHistory
   );
-  const localQueryPlan = await planLocalQuery({
-    query: message,
-    rawHistory: historyContextForLocal.rawHistory,
-  });
+  let localQueryPlan = null;
+  let onDemandLocalIndex = null;
+  try {
+    localQueryPlan = await planLocalQuery({
+      query: message,
+      rawHistory: localFileSearchQuery(message)
+        ? []
+        : historyContextForLocal.rawHistory,
+    });
+  } catch (error) {
+    console.error("[WICI Local RAG] Query planning failed.", error);
+    const textResponse = localSearchFailureResponse();
+    const metrics = {
+      wiciLocalRag: {
+        phase: "query_planning",
+        error: error.message,
+        contextSources: 0,
+      },
+    };
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      metrics,
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "query_planning_failed",
+        error: error.message,
+      },
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+        metrics,
+      },
+      threadId: thread?.id || null,
+      apiSessionId: sessionId,
+      user,
+    });
+    return;
+  }
   if (localQueryPlan?.intent === "path_capability_question") {
     const textResponse = localPathCapabilityResponse();
     const metrics = {
@@ -811,13 +955,57 @@ async function streamChat({
     });
     return;
   }
-  const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
-    workspace,
-    userId: user?.id || null,
-    query: localSearchQuery,
-    queryPlan: localQueryPlan,
-    chatMode,
-  });
+  try {
+    onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
+      workspace,
+      userId: user?.id || null,
+      query: localSearchQuery,
+      queryPlan: localQueryPlan,
+      chatMode,
+    });
+  } catch (error) {
+    console.error("[WICI Local RAG] On-demand local indexing failed.", error);
+    const textResponse = localSearchFailureResponse();
+    const metrics = {
+      wiciLocalRag: {
+        phase: "on_demand_indexing",
+        plannerModel: localQueryPlan?.model || null,
+        plannerIntent: localQueryPlan?.intent || null,
+        error: error.message,
+        contextSources: 0,
+      },
+    };
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      metrics,
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "on_demand_indexing_failed",
+        error: error.message,
+        queryPlan: localQueryPlan,
+      },
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+        metrics,
+      },
+      threadId: thread?.id || null,
+      apiSessionId: sessionId,
+      user,
+    });
+    return;
+  }
   onDemandLocalIndex.queryPlan = localQueryPlan;
   const localRagMetrics = {
     onDemandMs: onDemandLocalIndex?.elapsedMs ?? null,
@@ -830,7 +1018,9 @@ async function streamChat({
     contextSources: 0,
   };
   if (onDemandLocalIndex?.strictLocalMiss) {
-    const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
+    const textResponse = onDemandLocalIndex.numericTerms?.length
+      ? `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms.join(", ")} 的文件。`
+      : localSearchMissResponse();
     writeResponseChunk(response, {
       uuid,
       type: "textResponse",
@@ -838,7 +1028,7 @@ async function streamChat({
       sources: [],
       close: true,
       error: null,
-      metrics: {},
+      metrics: { wiciLocalRag: localRagMetrics },
       wiciLocalIndex: onDemandLocalIndex,
     });
     await WorkspaceChats.new({
@@ -849,6 +1039,7 @@ async function streamChat({
         sources: [],
         type: chatMode,
         attachments,
+        metrics: { wiciLocalRag: localRagMetrics },
       },
       threadId: thread?.id || null,
       apiSessionId: sessionId,
@@ -863,8 +1054,11 @@ async function streamChat({
   // we should exit early as no information can be found under these conditions.
   if ((!hasVectorizedSpace || embeddingsCount === 0) && chatMode === "query") {
     const textResponse =
-      workspace?.queryRefusalResponse ??
-      "There is no relevant information in this workspace to answer your query.";
+      localFileSearchQuery(message) || localQueryPlan?.should_search_local
+        ? localSearchMissResponse()
+        : workspace?.queryRefusalResponse ??
+          "There is no relevant information in this workspace to answer your query.";
+    const metrics = { wiciLocalRag: localRagMetrics };
     writeResponseChunk(response, {
       id: uuid,
       type: "textResponse",
@@ -873,7 +1067,7 @@ async function streamChat({
       attachments: [],
       close: true,
       error: null,
-      metrics: {},
+      metrics,
       wiciLocalIndex: onDemandLocalIndex,
     });
     await WorkspaceChats.new({
@@ -884,7 +1078,7 @@ async function streamChat({
         sources: [],
         attachments: attachments,
         type: chatMode,
-        metrics: {},
+        metrics,
       },
       threadId: thread?.id || null,
       apiSessionId: sessionId,
@@ -1044,8 +1238,11 @@ async function streamChat({
   // let the LLM try to hallucinate a response or use general knowledge and exit early
   if (chatMode === "query" && contextTexts.length === 0) {
     const textResponse =
-      workspace?.queryRefusalResponse ??
-      "There is no relevant information in this workspace to answer your query.";
+      localFileSearchQuery(message) || localQueryPlan?.should_search_local
+        ? localSearchMissResponse()
+        : workspace?.queryRefusalResponse ??
+          "There is no relevant information in this workspace to answer your query.";
+    const metrics = { wiciLocalRag: localRagMetrics };
     writeResponseChunk(response, {
       id: uuid,
       type: "textResponse",
@@ -1053,7 +1250,7 @@ async function streamChat({
       sources: [],
       close: true,
       error: null,
-      metrics: {},
+      metrics,
       wiciLocalIndex: localIndex,
     });
 
@@ -1065,7 +1262,7 @@ async function streamChat({
         sources: [],
         attachments: attachments,
         type: chatMode,
-        metrics: {},
+        metrics,
       },
       threadId: thread?.id || null,
       apiSessionId: sessionId,

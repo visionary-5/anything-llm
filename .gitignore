@@ -11,6 +11,7 @@ wici-enrichment-cache/
 server/storage/wici-enrichment-cache/
 server/storage/wici-local-dir-indexer/
 server/storage/wici-local-sources/
+reports/m9-full-disk-index/*.json
 __pycache__
 v-env
 .DS_Store

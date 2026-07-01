@@ -16,7 +16,10 @@ const {
   stripHiddenReasoning,
   retryEmptyStreamCompletion,
   localSearchQueryForMessage,
+  localFileSearchQuery,
   localPathCapabilityResponse,
+  localSearchFailureResponse,
+  localSearchMissResponse,
   diversifySourcesByDocument,
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
@@ -108,10 +111,55 @@ async function streamChatWithWorkspace(
     updatedMessage,
     historyContextForLocal.rawHistory
   );
-  const localQueryPlan = await planLocalQuery({
-    query: updatedMessage,
-    rawHistory: historyContextForLocal.rawHistory,
-  });
+  let localQueryPlan = null;
+  let onDemandLocalIndex = null;
+  try {
+    localQueryPlan = await planLocalQuery({
+      query: updatedMessage,
+      rawHistory: localFileSearchQuery(updatedMessage)
+        ? []
+        : historyContextForLocal.rawHistory,
+    });
+  } catch (error) {
+    console.error("[WICI Local RAG] Query planning failed.", error);
+    const textResponse = localSearchFailureResponse();
+    const metrics = {
+      wiciLocalRag: {
+        phase: "query_planning",
+        error: error.message,
+        contextSources: 0,
+      },
+    };
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      metrics,
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "query_planning_failed",
+        error: error.message,
+      },
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+        metrics,
+      },
+      threadId: thread?.id || null,
+      include: false,
+      user,
+    });
+    return;
+  }
   if (localQueryPlan?.intent === "path_capability_question") {
     const textResponse = localPathCapabilityResponse();
     writeResponseChunk(response, {
@@ -156,13 +204,57 @@ async function streamChatWithWorkspace(
     });
     return;
   }
-  const onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
-    workspace,
-    userId: user?.id || null,
-    query: localSearchQuery,
-    queryPlan: localQueryPlan,
-    chatMode,
-  });
+  try {
+    onDemandLocalIndex = await maybeIndexLocalSourcesForQuery({
+      workspace,
+      userId: user?.id || null,
+      query: localSearchQuery,
+      queryPlan: localQueryPlan,
+      chatMode,
+    });
+  } catch (error) {
+    console.error("[WICI Local RAG] On-demand local indexing failed.", error);
+    const textResponse = localSearchFailureResponse();
+    const metrics = {
+      wiciLocalRag: {
+        phase: "on_demand_indexing",
+        plannerModel: localQueryPlan?.model || null,
+        plannerIntent: localQueryPlan?.intent || null,
+        error: error.message,
+        contextSources: 0,
+      },
+    };
+    writeResponseChunk(response, {
+      uuid,
+      type: "textResponse",
+      textResponse,
+      sources: [],
+      close: true,
+      error: null,
+      metrics,
+      wiciLocalIndex: {
+        skipped: true,
+        reason: "on_demand_indexing_failed",
+        error: error.message,
+        queryPlan: localQueryPlan,
+      },
+    });
+    await WorkspaceChats.new({
+      workspaceId: workspace.id,
+      prompt: message,
+      response: {
+        text: textResponse,
+        sources: [],
+        type: chatMode,
+        attachments,
+        metrics,
+      },
+      threadId: thread?.id || null,
+      include: false,
+      user,
+    });
+    return;
+  }
   onDemandLocalIndex.queryPlan = localQueryPlan;
   const localRagMetrics = {
     onDemandMs: onDemandLocalIndex?.elapsedMs ?? null,
@@ -175,7 +267,9 @@ async function streamChatWithWorkspace(
     contextSources: 0,
   };
   if (onDemandLocalIndex?.strictLocalMiss) {
-    const textResponse = `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms?.join(", ")} 的文件。`;
+    const textResponse = onDemandLocalIndex.numericTerms?.length
+      ? `我没有在已索引或可发现的本地文件里找到匹配 ${onDemandLocalIndex.numericTerms.join(", ")} 的文件。`
+      : localSearchMissResponse();
     writeResponseChunk(response, {
       uuid,
       type: "textResponse",
@@ -183,6 +277,7 @@ async function streamChatWithWorkspace(
       sources: [],
       close: true,
       error: null,
+      metrics: { wiciLocalRag: localRagMetrics },
       wiciLocalIndex: onDemandLocalIndex,
     });
     await WorkspaceChats.new({
@@ -193,6 +288,7 @@ async function streamChatWithWorkspace(
         sources: [],
         type: chatMode,
         attachments,
+        metrics: { wiciLocalRag: localRagMetrics },
       },
       threadId: thread?.id || null,
       user,
@@ -380,8 +476,10 @@ async function streamChatWithWorkspace(
   // let the LLM try to hallucinate a response or use general knowledge and exit early
   if (chatMode === "query" && contextTexts.length === 0) {
     const textResponse =
-      workspace?.queryRefusalResponse ??
-      "There is no relevant information in this workspace to answer your query.";
+      localFileSearchQuery(updatedMessage) || localQueryPlan?.should_search_local
+        ? localSearchMissResponse()
+        : workspace?.queryRefusalResponse ??
+          "There is no relevant information in this workspace to answer your query.";
     writeResponseChunk(response, {
       id: uuid,
       type: "textResponse",
@@ -389,6 +487,7 @@ async function streamChatWithWorkspace(
       sources: [],
       close: true,
       error: null,
+      metrics: { wiciLocalRag: localRagMetrics },
       wiciLocalIndex: onDemandLocalIndex,
     });
 
@@ -400,6 +499,7 @@ async function streamChatWithWorkspace(
         sources: [],
         type: chatMode,
         attachments,
+        metrics: { wiciLocalRag: localRagMetrics },
       },
       threadId: thread?.id || null,
       include: false,

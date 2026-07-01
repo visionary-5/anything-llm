@@ -152,9 +152,24 @@ function sourceMatchesLocalDocument(source = {}, document = {}) {
 }
 
 function localMatchedDocuments(localIndex = {}) {
-  return Array.isArray(localIndex?.matchedDocuments)
-    ? localIndex.matchedDocuments
+  const matches = Array.isArray(localIndex?.matchedDocuments)
+    ? [...localIndex.matchedDocuments]
     : [];
+  const seen = new Set(matches.map((match) => match.location).filter(Boolean));
+  for (const row of Array.isArray(localIndex?.rows) ? localIndex.rows : []) {
+    for (const document of Array.isArray(row?.documents) ? row.documents : []) {
+      if (!document?.location || seen.has(document.location)) continue;
+      seen.add(document.location);
+      matches.push({
+        ...document,
+        sourcePath: document.sourcePath || row.path,
+        score: row.score,
+        wiciLocalSourceMatch: true,
+        wiciLocalOnDemandRow: true,
+      });
+    }
+  }
+  return matches;
 }
 
 function hasLocalMatchedDocuments(localIndex = {}) {
@@ -249,6 +264,13 @@ function localDocumentResetQuery(query = "") {
   );
 }
 
+function localFileSearchQuery(query = "") {
+  const normalized = normalizeLocalAnchorText(query);
+  return /(找|搜|有没有|是否有|叫什么|名字|find|search|locate).{0,24}(图片|照片|图像|截图|相册|文件|pdf|document|image|photo|picture|screenshot|cat|camera|phone|seal|stamp|黑猫|相机|手机|盖章|印章|女生|女孩|浴室|洗手台)/i.test(
+    normalized
+  );
+}
+
 function previousUserPrompt(rawHistory = []) {
   const previous = rawHistory
     .slice()
@@ -258,6 +280,7 @@ function previousUserPrompt(rawHistory = []) {
 }
 
 function localSearchQueryForMessage(query = "", rawHistory = []) {
+  if (localFileSearchQuery(query)) return query;
   if (!localDocumentResetQuery(query)) return query;
 
   const previousPrompt = previousUserPrompt(rawHistory);
@@ -366,6 +389,7 @@ function localHistoryMatchesForQuery(rawHistory = [], query = "") {
 function localIndexWithHistoryAnchors(localIndex = {}, rawHistory = [], query = "") {
   if (localIndex?.strictLocalMiss) return localIndex;
   if (localDocumentResetQuery(query)) return localIndex;
+  if (localFileSearchQuery(query)) return localIndex;
   const historyMatches = localHistoryMatchesForQuery(rawHistory, query);
   if (historyMatches.length === 0) return localIndex;
 
@@ -530,6 +554,20 @@ function localPathCapabilityResponse() {
   ].join("\n");
 }
 
+function localSearchFailureResponse() {
+  return [
+    "我这次没能可靠完成本地检索，所以不能确认本机里是否有匹配的文件。",
+    "这通常是本地索引或查询规划阶段的临时错误，不代表文件一定不存在。错误细节已记录在本次响应的本地检索元数据里，方便开发排查。",
+  ].join("\n");
+}
+
+function localSearchMissResponse() {
+  return [
+    "我没有在当前已索引的本地文件里找到可靠匹配，所以不能确认本机里有这个文件。",
+    "如果全盘索引还没完成，或者目标文件还没有经过 OCR/VLM/embedding 处理，这不代表它一定不存在。",
+  ].join("\n");
+}
+
 function documentKeyForSource(source = {}) {
   return normalizeClientSourceKey(
     source.sourcePath ||
@@ -616,7 +654,10 @@ module.exports = {
   retryEmptyStreamCompletion,
   localSearchQueryForMessage,
   localDocumentResetQuery,
+  localFileSearchQuery,
   localPathCapabilityResponse,
+  localSearchFailureResponse,
+  localSearchMissResponse,
   diversifySourcesByDocument,
   constrainSourcesToLocalMatches,
   evidenceSourcesForLocalMatches,
